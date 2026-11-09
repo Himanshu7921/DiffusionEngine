@@ -66,7 +66,7 @@ class NoiseInjector(nn.Module):
         B, C, H, W = x_0.shape
         eps = torch.randn_like(x_0) # get the gaussian noise
         self.alpha_bar_t = self.alpha_bar[t].view(B, 1, 1, 1) # (B, 1, 1, 1)
-        noisy_image = torch.clip((torch.sqrt(self.alpha_bar_t) * x_0 + torch.sqrt((1 - self.alpha_bar_t)) * eps), min = 0, max = 1)
+        noisy_image = torch.sqrt(self.alpha_bar_t) * x_0 + torch.sqrt((1 - self.alpha_bar_t)) * eps
         return noisy_image, eps
 
 class NoiseInjectionPipeline(nn.Module):
