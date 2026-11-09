@@ -14,26 +14,6 @@
 
 Implements **Denoising Diffusion Probabilistic Models (DDPM)** based on the paper: [Denoising Diffusion Probabilistic Models](https://arxiv.org/pdf/2006.11239).
 
-## How DDPM Works
-
-DDPM consists of two complementary processes:
-
-- **Forward Diffusion:** Gradually adds Gaussian noise to the original data over $T$ timesteps until the sample approaches an isotropic Gaussian distribution.
-- **Reverse Diffusion:** Learns to progressively remove noise from a noisy sample, reconstructing the original data distribution using a neural network.
-
-The model is trained to predict the noise added at each timestep:
-
-$$
-\mathcal{L}_{simple}
-=
-\mathbb{E}_{x_0,\epsilon,t}
-\left[
-\left\|
-\epsilon-\epsilon_\theta(x_t,t)
-\right\|^2
-\right]
-$$
-
 ## Usage
 
 ```python
