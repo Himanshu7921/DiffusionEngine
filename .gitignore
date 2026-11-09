@@ -1,3 +1,10 @@
 src/__pycache__/*
 data/
 src/checkpoints/*
+src/tea_debug.log
+src/wandb/run-20261109_214841-ikashgxl/files/output.log
+src/wandb/run-20261109_214841-ikashgxl/run-ikashgxl.wandb
+src/wandb/run-20261109_214841-ikashgxl/files/wandb-metadata.json
+src/wandb/run-20261109_214841-ikashgxl/logs/debug-internal.log
+src/wandb/run-20261109_214841-ikashgxl/logs/debug.log
+src/wandb/run-20261109_214841-ikashgxl/files/requirements.txt
