@@ -1,4 +1,8 @@
-# DDPM - PyTorch Implementation
+# DDPM - PyTorch 
+
+<p align="center">
+  <img src="assets/ddpm_architecture.png" alt="DDPM Forward and Reverse Diffusion Process" width="100%">
+</p>
 
 Implements **Denoising Diffusion Probabilistic Models (DDPM)** based on the paper: [Denoising Diffusion Probabilistic Models](https://arxiv.org/pdf/2006.11239).
 
