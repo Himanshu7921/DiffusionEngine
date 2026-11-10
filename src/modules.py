@@ -49,6 +49,9 @@ class LinearNoiseScheduler(nn.Module):
 class NoiseInjector(nn.Module):
     """
     Injects the noise upto the timestep 't' to the image x_0
+
+    training time: Random noise and timestep injection
+    validation time: Fixed noise and timestep injection (if provided externally)
     """
     def __init__(self, config):
         super().__init__()
@@ -58,19 +61,27 @@ class NoiseInjector(nn.Module):
         alpha_bar = torch.cumprod(self.alpha, dim = 0) # alpha_bar.shape = [T+1]
         self.register_buffer("alpha_bar", alpha_bar)
 
-    def forward(self, x_0: torch.Tensor, t: torch.Tensor):
+    def forward(self, x_0: torch.Tensor, t: torch.Tensor, noise: torch.Tensor = None):
         """
         x_0: Original Image at timestep '0'     shape = [B, C, H, W]
         t: Timestep up to which we want to inject the noise shape = [B, ]
+
+        timesteps and noise = None (normal mode) | fixed at validation time (makes LRScheuler less sensitive on random noise)
         """
         B, C, H, W = x_0.shape
-        eps = torch.randn_like(x_0) # get the gaussian noise
+        # Generate noise only if not provided.
+        if noise is None:
+            noise = torch.randn_like(x_0) # get the gaussian noise
+        eps = noise
         self.alpha_bar_t = self.alpha_bar[t].view(B, 1, 1, 1) # (B, 1, 1, 1)
         noisy_image = torch.sqrt(self.alpha_bar_t) * x_0 + torch.sqrt((1 - self.alpha_bar_t)) * eps
         return noisy_image, eps
 
 class NoiseInjectionPipeline(nn.Module):
     def __init__(self, config, random: bool = True):
+        """
+        Randomly generates the Timesteps for training and uses a fixed noise and timesteps for validation (if provided externally)
+        """
         super().__init__()
         self.random = random
         if random:
@@ -80,10 +91,25 @@ class NoiseInjectionPipeline(nn.Module):
         
         self.noise_injector = NoiseInjector(config = config)
 
-    def forward(self, x_0: torch.tensor):
+    def forward(self, x_0: torch.tensor, timesteps: torch.Tensor = None, noise: torch.Tensor = None):
+        """
+        x_0: (B, C, H, W)
+        timesteps: (B, )
+        timesteps and noise = None (normal mode) | fixed at validation time (makes LRScheuler less sensitive on random noise)
+        """
         B = x_0.shape[0]
-        if self.random:
-            t = self.time_step_sampler(batch_size = B, device = x_0.device)
+
+        if timesteps is None:
+            if self.random:
+                t = self.time_step_sampler(batch_size = B, device = x_0.device)
+            else:
+                t = self.time_step_sampler(device = x_0.device)
         else:
-            t = self.time_step_sampler(device = x_0.device)
-        return self.noise_injector(x_0, t), t        
+            t = timesteps.to(
+                device=x_0.device,
+                dtype=torch.long
+            )
+
+        # Inject supplied noise or generate random noise
+        x_t, actual_noise = self.noise_injector(x_0 = x_0, t = t, noise = noise)
+        return (x_t, actual_noise), t
