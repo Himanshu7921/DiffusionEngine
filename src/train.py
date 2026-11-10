@@ -151,6 +151,7 @@ class Trainer:
         self.run = wandb.init(
             project=project_name,
             name=run_name,
+            id="wjh3gscw",
             config={
                 **config,
                 "batch_size": batch_size,
@@ -326,25 +327,16 @@ class Trainer:
     def save_checkpoint(self, filename):
 
         checkpoint = {
-
             "epoch": self.current_epoch + 1,
             "global_step": self.global_step,
-
             "model_state_dict": self.ddpm.state_dict(),
-
             "optimizer_state_dict": self.optimizer.state_dict(),
-
             "scheduler_state_dict": self.lr_scheduler.state_dict(),
-
             "scaler_state_dict": self.scaler.state_dict(),
-
             "best_val_loss": self.best_val_loss,
-
             "train_losses": self.train_losses,
             "val_losses": self.val_losses,
-
             "wandb_run_id": self.wandb_run_id,
-
             "config": self.config
         }
 
