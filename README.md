@@ -59,4 +59,4 @@ The sampling pipeline loads the checkpoint and generates images through iterativ
 
 ## Training & Evaluation
 
-The [`train.ipynb`](train.ipynb) notebook demonstrates the training workflow, model evaluation, and reverse diffusion sampling.
+The [`train.ipynb`](src/train.ipynb) notebook demonstrates the training workflow, model evaluation, and reverse diffusion sampling.
