@@ -6,23 +6,13 @@ from diffusers import AutoencoderKL
 
 @torch.no_grad()
 def decode_output(generated, config, vae=None):
-    """
-    Convert the generated output into an RGB image in [0, 1]
-
-    If latent denoising is enabled:
-        1. Undo the VAE scaling factor.
-        2. Decode the latent representation into RGB.
-    """
-
     if config["latent_denoise"]:
         if vae is None:
             raise ValueError(
                 "VAE must be provided when latent_denoise=True"
             )
 
-        scaling_factor = vae.config.scaling_factor
-
-        generated = generated / scaling_factor
+        generated = generated / vae.config.scaling_factor
         generated = vae.decode(generated).sample
 
     return ((generated + 1) / 2).clamp(0, 1)
@@ -45,7 +35,7 @@ def sample(ddpm, config, device, batch_size, vae = None):
             )
 
         downsample_factor = 2 ** (
-            (vae.colennfig.block_out_channels) - 1
+            len(vae.config.block_out_channels) - 1
         )
 
         if image_size % downsample_factor != 0:
@@ -61,7 +51,7 @@ def sample(ddpm, config, device, batch_size, vae = None):
 
     channels = config["in_channels"]
 
-    # Start from Gaussian noise with the same shape as the training image.
+    # Start from Gaussian noise with the same shape as the training image
     x_t = torch.randn(batch_size, channels, height, width).to(device)
 
     injector = ddpm.noise_injection_pipieline.noise_injector
@@ -73,7 +63,7 @@ def sample(ddpm, config, device, batch_size, vae = None):
 
     for t in range(T, 0, -1):
 
-        t_tensor = torch.tensor([t], device=device, dtype=torch.long)
+        t_tensor = torch.full((batch_size,), t, device=device, dtype=torch.long)
 
         # Predict noise.
         eps_theta = ddpm.noise_prediction_pipeline(x_t, t_tensor)
@@ -103,12 +93,12 @@ def sample(ddpm, config, device, batch_size, vae = None):
         else:
             x_t = mean
 
-        # Decode final output.
-        generated = decode_output(
-            generated=x_t,
-            config=config,
-            vae=vae
-        )
+    # Decode final output.
+    generated = decode_output(
+        generated=x_t,
+        config=config,
+        vae=vae
+    )
 
     return generated
 
@@ -139,8 +129,20 @@ if __name__ == "__main__":
     saved_config = checkpoint.get("config", {})
     active_config = {**config, **saved_config}
 
+    # Validate required configuration.
+    if "in_channels" not in active_config:
+        active_config["in_channels"] = (
+            4 if active_config["latent_denoise"] else 3
+        )
+
+    if "out_channels" not in active_config:
+        active_config["out_channels"] = (
+            4 if active_config["latent_denoise"] else 3
+        )
+
     # Load VAE if latent denoising is enabled
     vae = None
+
     if active_config["latent_denoise"]:
         vae = AutoencoderKL.from_pretrained(
             active_config["vae_model"]
@@ -150,21 +152,21 @@ if __name__ == "__main__":
 
     # Forward diffusion
     noise_injection_pipeline = NoiseInjectionPipeline(
-        config=config,
+        config=active_config,
         random=True
     )
 
     # Noise prediction backbone
     unet = UNet(
-        in_channels=config["in_channels"],
-        out_channels=config["out_channels"],
-        time_embd_dim=config["time_embed"],
+        in_channels=active_config["in_channels"],
+        out_channels=active_config["out_channels"],
+        time_embd_dim=active_config["time_embed"],
         base_channels=64
     )
 
     # Noise prediction pipeline
     noise_prediction_pipeline = NoisePredictionPipeline(
-        config=config,
+        config=active_config,
         noise_prediction_model=unet
     )
 
@@ -187,6 +189,8 @@ if __name__ == "__main__":
     print(f"Loaded From Step : {checkpoint.get('global_step', 'Unknown')}")
     print(f"Checkpoint Loss  : {checkpoint.get('best_val_loss', 'Unknown')}")
     print(f"Latent Denoising : {active_config['latent_denoise']}")
+    print(f"Precomputed Latents: {'Enabled' if active_config['precomputed_latents'] else 'Disabled'}")
+
     print(f"Input Channels   : {active_config['in_channels']}")
     print(f"Output Channels  : {active_config['out_channels']}")
     print("-" * 60)
@@ -196,7 +200,7 @@ if __name__ == "__main__":
     print("Sampling and generating image... Please wait.")
     print("=" * 60)
 
-    generated_image = sample(ddpm, config, device, args.batch_size, vae = vae)
+    generated_image = sample(ddpm, active_config, device, args.batch_size, vae = vae)
 
     # Visualize generated images
 
@@ -217,4 +221,3 @@ if __name__ == "__main__":
     plt.axis("off")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.show()
-
