@@ -2,7 +2,10 @@ DEBUG = True
 
 config = {
     "T": 1000,
+    "latent_denoise": True, # Diffusion mode
     "batch_size": 32,
+
+    "image_size": 256,
 
     # Noise schedule
     "beta_start": 1e-4,
@@ -18,3 +21,8 @@ config = {
     # Timestep embedding
     "time_embed": 256,
 }
+
+# Automatically configure U-Net channels
+config["in_channels"] = 4 if config["latent_denoise"] else 3
+config["out_channels"] = 4 if config["latent_denoise"] else 3
+config["vae_model"] = "stabilityai/sd-vae-ft-mse" if config["latent_denoise"] else None
