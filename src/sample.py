@@ -1,14 +1,68 @@
 import torch
 import argparse
+from config import config
+from diffusers import AutoencoderKL
+
 
 @torch.no_grad()
-def sample(ddpm, config, device, batch_size):
+def decode_output(generated, config, vae=None):
+    """
+    Convert the generated output into an RGB image in [0, 1]
+
+    If latent denoising is enabled:
+        1. Undo the VAE scaling factor.
+        2. Decode the latent representation into RGB.
+    """
+
+    if config["latent_denoise"]:
+        if vae is None:
+            raise ValueError(
+                "VAE must be provided when latent_denoise=True"
+            )
+
+        scaling_factor = vae.config.scaling_factor
+
+        generated = generated / scaling_factor
+        generated = vae.decode(generated).sample
+
+    return ((generated + 1) / 2).clamp(0, 1)
+
+@torch.no_grad()
+def sample(ddpm, config, device, batch_size, vae = None):
     ddpm.eval()
 
     T = config["T"]
 
+    latent_denoise = config["latent_denoise"]
+
+    # Determine initial noise dimensions.
+    image_size = config["image_size"]
+
+    if latent_denoise:
+        if vae is None:
+            raise ValueError(
+                "VAE must be provided when latent_denoise=True"
+            )
+
+        downsample_factor = 2 ** (
+            (vae.colennfig.block_out_channels) - 1
+        )
+
+        if image_size % downsample_factor != 0:
+            raise ValueError("Image size must be divisible by VAE downsample factor")
+
+        height = image_size // downsample_factor
+        width = image_size // downsample_factor
+
+
+    else:
+        height = image_size
+        width = image_size
+
+    channels = config["in_channels"]
+
     # Start from Gaussian noise with the same shape as the training image.
-    x_t = torch.randn(batch_size, 3, 64, 64).to(device)
+    x_t = torch.randn(batch_size, channels, height, width).to(device)
 
     injector = ddpm.noise_injection_pipieline.noise_injector
 
@@ -49,7 +103,14 @@ def sample(ddpm, config, device, batch_size):
         else:
             x_t = mean
 
-    return x_t
+        # Decode final output.
+        generated = decode_output(
+            generated=x_t,
+            config=config,
+            vae=vae
+        )
+
+    return generated
 
 if __name__ == "__main__":
     import torch
@@ -58,18 +119,34 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from modules import NoiseInjectionPipeline
     from denoising_diffusion import NoisePredictionPipeline, DDPM
+    import matplotlib.pyplot as plt
+    from torchvision.utils import make_grid
 
     parser = argparse.ArgumentParser(description="DDPM Image Generation Script")
     parser.add_argument("--batch_size", type=int, default=4, help="Number of images to generate")
     parser.add_argument("--checkpoint", type=str, default="./checkpoint/best.pt", help="Path to the model checkpoint")
     args = parser.parse_args()
 
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # 1. Determine active device name
     device_name = torch.cuda.get_device_name(device) if device.type == "cuda" else "CPU Execution"
 
+    # Load the best checkpoint
+    checkpoint = torch.load(
+        args.checkpoint,
+        map_location=device,
+        weights_only=False
+    )
+    saved_config = checkpoint.get("config", {})
+    active_config = {**config, **saved_config}
+
+    # Load VAE if latent denoising is enabled
+    vae = None
+    if active_config["latent_denoise"]:
+        vae = AutoencoderKL.from_pretrained(
+            active_config["vae_model"]
+        ).to(device)
+        vae.eval()
+        vae.requires_grad_(False)
 
     # Forward diffusion
     noise_injection_pipeline = NoiseInjectionPipeline(
@@ -79,8 +156,8 @@ if __name__ == "__main__":
 
     # Noise prediction backbone
     unet = UNet(
-        in_channels=3,
-        out_channels=3,
+        in_channels=config["in_channels"],
+        out_channels=config["out_channels"],
         time_embd_dim=config["time_embed"],
         base_channels=64
     )
@@ -97,20 +174,10 @@ if __name__ == "__main__":
         noise_prediction_pipeline=noise_prediction_pipeline
     )
 
-    # Load the best checkpoint
-    checkpoint = torch.load(
-        args.checkpoint,
-        map_location=device,
-        weights_only=False
-    )
-
     # Restore model weights
     ddpm.load_state_dict(checkpoint["model_state_dict"])
     ddpm.to(device)
     ddpm.eval()
-
-    # 2. Extract configuration info from the loaded checkpoint if available
-    saved_config = checkpoint.get("config", "No config metadata found in checkpoint")
 
     print("=" * 60)
     print("DDPM IMAGE GENERATION PIPELINE INITIALIZED")
@@ -119,6 +186,9 @@ if __name__ == "__main__":
     print(f"Checkpoint Path  : {args.checkpoint}")
     print(f"Loaded From Step : {checkpoint.get('global_step', 'Unknown')}")
     print(f"Checkpoint Loss  : {checkpoint.get('best_val_loss', 'Unknown')}")
+    print(f"Latent Denoising : {active_config['latent_denoise']}")
+    print(f"Input Channels   : {active_config['in_channels']}")
+    print(f"Output Channels  : {active_config['out_channels']}")
     print("-" * 60)
     print("DDPM MODEL CONFIGURATION DETAILS:")
     print(saved_config)
@@ -126,58 +196,25 @@ if __name__ == "__main__":
     print("Sampling and generating image... Please wait.")
     print("=" * 60)
 
-    generated_image = sample(ddpm, config, device, args.batch_size)
-    generated_image = (generated_image + 1.0) / 2.0 # Convert [-1, 1] -> [0, 1]
-    generated_image = generated_image.clamp(0, 1) # for visualization in matplotlib
+    generated_image = sample(ddpm, config, device, args.batch_size, vae = vae)
 
-    import math
+    # Visualize generated images
 
-    # Get the total number of images in the batch (B)
-    num_images = generated_image.shape[0]
+    # generated_image: [B, C, H, W]; and the sampling pipeline already handles the output normalization range [0, 1]
+    # generated_image: (B, C, H, W) in [0, 1] range
 
-    # Check if we need to enforce the exact 10x10 zero-gap matrix layout
-    if num_images == 100:
-        rows, cols = 10, 10
-        # Set up the strict 10x10 grid with absolutely zero spacing
-        fig, axes = plt.subplots(
-            rows, 
-            cols, 
-            figsize=(10, 10), 
-            gridspec_kw={'wspace': 0, 'hspace': 0}
-        )
-    else:
-        # Fallback to your dynamic calculation for other batch sizes
-        cols = min(4, num_images)  # Max 4 images per row
-        rows = math.ceil(num_images / cols)
-        fig, axes = plt.subplots(rows, cols, figsize=(cols * 3, rows * 3))
+    grid = make_grid(
+        generated_image,
+        nrow=min(args.batch_size, 4),
+        padding=0,
+        normalize=False
+    )
+    # CHW -> HWC
+    grid = grid.permute(1, 2, 0).cpu().numpy()
 
-    # Ensure axes is always a flat array even if rows/cols = 1
-    if num_images == 1:
-        axes = [axes]
-    else:
-        axes = axes.flatten()
-
-    for i in range(num_images):
-        # Convert BCHW -> HWC for the i-th image
-        img = generated_image[i].permute(1, 2, 0).cpu().numpy()
-        
-        axes[i].imshow(img)
-        axes[i].axis("off")
-        
-        # Only show image titles if it is NOT the 100-image grid layout
-        if num_images != 100:
-            axes[i].set_title(f"Image {i+1}")
-
-    # Hide any empty subplots if the grid isn't perfectly filled
-    for j in range(num_images, len(axes)):
-        axes[j].axis("off")
-
-    # Apply layout adjustment based on the batch type
-    if num_images == 100:
-        # Force the bounding box precisely to the edges with zero white borders
-        plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
-    else:
-        plt.tight_layout()
-
+    plt.figure(figsize=(10, 10))
+    plt.imshow(grid)
+    plt.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.show()
 
