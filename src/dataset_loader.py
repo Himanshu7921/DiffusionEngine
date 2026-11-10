@@ -42,3 +42,32 @@ class CelebADataset(Dataset):
             image = self.transform(image)
 
         return image
+
+import torch
+from torch.utils.data import Dataset
+
+class LatentDataset(Dataset):
+    def __init__(self, latent_path):
+
+        data = torch.load(
+            latent_path,
+            map_location="cpu",
+            weights_only=False
+        )
+
+        self.latents = data["latents"]
+
+        self.metadata = {
+            key: value
+            for key, value in data.items()
+            if key != "latents"
+        }
+
+        print(f"Loaded latent dataset: {len(self.latents)} images")
+        print(f"Latent shape: {tuple(self.latents.shape)}")
+
+    def __len__(self):
+        return len(self.latents)
+
+    def __getitem__(self, index):
+        return self.latents[index]
