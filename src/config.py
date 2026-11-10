@@ -2,8 +2,11 @@ DEBUG = True
 
 config = {
     "T": 1000,
-    "latent_denoise": True, # Diffusion mode
-    "batch_size": 32,
+    "batch_size": 8,
+
+    # Diffusion mode
+    "latent_denoise": True,
+    "precomputed_latents": True,
 
     "image_size": 256,
 
