@@ -26,11 +26,22 @@ class DDPM(nn.Module):
         self.noise_injection_pipieline = noise_injection_pipieline # forward diffusion
         self.noise_prediction_pipeline = noise_prediction_pipeline # noise prediction model
 
-    def forward(self, x_0: torch.Tensor):
-        (x_t, noise), t = self.noise_injection_pipieline(x_0)
+    def forward(self, x_0: torch.Tensor, timesteps = None, noise = None):
+        """
+        x_0:      (B, C, H, W)
+        timesteps: (B,) or None
+        noise:     (B, C, H, W) or None
+
+        If timesteps/noise are provided, reuse them
+        Otherwise, generate random values
+
+
+        timesteps and noise = None (normal mode) | fixed at validation time (makes LRScheuler less sensitive on random noise)
+    """
+        (x_t, actual_noise), t = self.noise_injection_pipieline(x_0, timesteps = timesteps, noise = noise)
         self.t = t
         pred_noise = self.noise_prediction_pipeline(x_t, t)
-        return pred_noise, noise # ([B, C, H, W], [B, C, H, W])
+        return pred_noise, actual_noise # ([B, C, H, W], [B, C, H, W])
 
 
 # if __name__ == "__main__":
