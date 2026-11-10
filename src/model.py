@@ -50,36 +50,6 @@ class DownSampleBlock(nn.Module):
         returns: (B, C_out, H_out, W_out)
         """
         return self.downsample(x_t)
-    
-class UpSampleBlock(nn.Module):
-    """
-    performs one Up sampling operation, it's a part of UNet Model
-    in-order to make the implementation use any input spatial dim, i'll implement interpolation (nearest neighbour)
-    """
-    def __init__(self, in_channels: int, out_channels: int):
-        super().__init__()
-        self.upsample = nn.Conv2d(
-                in_channels = in_channels,
-                out_channels = out_channels,
-                stride = 1,
-                kernel_size = 3,
-                padding = 1
-            )
-
-    def forward(self, x_t: torch.Tensor, target_size: int = None):
-        """
-        x_t: (B, C_in, H_in, W_in) (Noise Image, noise injected upto timestep 't'; )
-        returns: (B, C_out, H_out, W_out)
-        """
-        if target_size is not None:
-            x_t = F.interpolate(
-                x_t, size = target_size, mode = "nearest"
-            )
-        else:
-            x_t = F.interpolate(
-                x_t, scale_factor = 2, mode = "nearest"
-            )
-        return self.upsample(x_t)
 
 class ResBlock(nn.Module):
     """
