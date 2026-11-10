@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
-from dataset_loader import CelebADataset
+from dataset_loader import CelebADataset, LatentDataset
 
 from diffusers import AutoencoderKL
 
@@ -47,14 +47,26 @@ class Trainer:
         self.latent_denoise = config["latent_denoise"]
         self.vae = None
         self.scaling_factor = None
+        self.latent_denoise = config["latent_denoise"]
+        self.precomputed_latents = config.get("precomputed_latents", False)
 
-        if self.latent_denoise:
+        if self.precomputed_latents and not self.latent_denoise:
+            raise ValueError(
+                "precomputed_latents=True requires latent_denoise=True"
+            )
+
+        self.vae = None
+        self.scaling_factor = None
+
+        # Load VAE only when encoding is required during training.
+        if self.latent_denoise and not self.precomputed_latents:
             self.vae = AutoencoderKL.from_pretrained(
-                "stabilityai/sd-vae-ft-mse"
+                config["vae_model"]
             ).to(self.device)
 
             self.vae.eval()
             self.vae.requires_grad_(False)
+
             self.scaling_factor = self.vae.config.scaling_factor
 
         self.batch_size = batch_size
@@ -90,10 +102,15 @@ class Trainer:
         # Dataset and DataLoaders
         # ----------------------------------------------------
 
-        dataset = CelebADataset(
-            root_dir=dataset_path,
-            image_size=image_size
-        )
+        if self.latent_denoise and self.precomputed_latents:
+            dataset = LatentDataset(
+                latent_path=dataset_path
+            )
+        else:
+            dataset = CelebADataset(
+                root_dir=dataset_path,
+                image_size=image_size
+            )
 
         val_size = max(
             1,
@@ -128,9 +145,13 @@ class Trainer:
 
         self.val_loader = DataLoader(
             self.val_dataset,
+            batch_size=batch_size,
             shuffle=False,
-            **loader_kwargs
-        )
+            num_workers=num_workers,
+            pin_memory = self.device.type == "cuda",
+            drop_last=False,
+            persistent_workers=num_workers > 0
+        )   
 
         # ----------------------------------------------------
         # Optimizer
@@ -178,6 +199,7 @@ class Trainer:
                 "weight_decay": weight_decay,
                 "optimizer": "AdamW",
                 "loss": "MSE",
+                "precomputed_latents": self.precomputed_latents,
                 "dataset": "CelebA",
                 "validation_split": validation_split,
                 "mixed_precision": self.use_amp
@@ -196,6 +218,7 @@ class Trainer:
         print(f"Device:          {self.device}")
         print(f"Mixed precision: {self.use_amp}")
         print(f"Latent Denoise : {'Enabled' if self.latent_denoise else 'Disabled'}")
+        print(f"Precomputed Latents: {'Enabled' if self.precomputed_latents else 'Disabled'}")
         print(f"Dataset size:    {len(dataset)}")
         print(f"Training images: {train_size}")
         print(f"Validation:      {val_size}")
@@ -205,19 +228,32 @@ class Trainer:
         print(f"W&B run:         {self.run.url}")
         print("=" * 60)
 
+
     @torch.no_grad()
-    def prepare_input(self, images):
-        """
-        handles both modes [latent_denoising or pixel_denoising spaces]
-        """
-        images = images.to(self.device)
+    def prepare_input(self, images, training=True):
+        images = images.to(
+            self.device,
+            non_blocking=True
+        )
 
-        if self.latent_denoise:
-            latents = self.vae.encode(images).latent_dist.sample()
-            latents = latents * self.scaling_factor
-            return latents
+        # Already encoded and scaled latent representations.
+        if self.precomputed_latents:
+            return images
 
-        return images
+        # Pixel-space diffusion.
+        if not self.latent_denoise:
+            return images
+
+        # Encode RGB images using the pretrained VAE.
+        posterior = self.vae.encode(images).latent_dist
+
+        latents = (
+            posterior.sample()
+            if training
+            else posterior.mode()
+        )
+
+        return latents * self.scaling_factor
 
     # ========================================================
     # Reproducibility
@@ -250,7 +286,8 @@ class Trainer:
         )
 
         for batch_idx, x_0 in enumerate(progress):
-            x_0 = self.prepare_input(x_0) # if self.latent_denoise is enabled then this will be z_0
+            x_0 = self.prepare_input(x_0, training=True) # if self.latent_denoise is enabled then this will be z_0
+
             x_0 = x_0.to(
                 self.device,
                 non_blocking=True
@@ -322,6 +359,9 @@ class Trainer:
 
         self.ddpm.eval()
 
+        if self.vae is not None:
+            self.vae.eval()
+
         running_loss = 0.0
 
         for x_0 in tqdm(
@@ -330,9 +370,10 @@ class Trainer:
             leave=False
         ):
 
-            x_0 = x_0.to(
-                self.device,
-                non_blocking=True
+            # Automatically handles RGB or precomputed latent input.
+            x_0 = self.prepare_input(
+                x_0,
+                training=False
             )
 
             with torch.autocast(
