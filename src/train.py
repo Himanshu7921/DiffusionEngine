@@ -151,7 +151,8 @@ class Trainer:
             pin_memory = self.device.type == "cuda",
             drop_last=False,
             persistent_workers=num_workers > 0
-        )   
+        )
+        self.create_fixed_validation_inputs(seed = 12345)
 
         # ----------------------------------------------------
         # Optimizer
@@ -163,12 +164,13 @@ class Trainer:
             weight_decay=weight_decay
         )
 
-        # Reduce learning rate when validation stops improving.
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
             mode="min",
             factor=0.5,
-            patience=5,
+            patience=15,
+            threshold=1e-3,
+            threshold_mode="rel",
             min_lr=1e-6
         )
 
@@ -354,6 +356,36 @@ class Trainer:
     # Validation
     # ========================================================
 
+    def create_fixed_validation_inputs(self, seed = 12345):
+        generator = torch.Generator(device="cpu")
+        generator.manual_seed(seed)
+
+        self.fixed_val_noise = []
+        self.fixed_val_timesteps = []
+
+        T = self.config["T"]
+
+        for images in self.val_loader:
+            batch_size = images.shape[0]
+
+            noise = torch.randn(
+                images.shape,
+                generator=generator
+            )
+
+            timesteps = torch.randint(
+                low=1,
+                high=T + 1,
+                size=(batch_size,),
+                generator=generator
+            )
+
+            self.fixed_val_noise.append(noise)
+            self.fixed_val_timesteps.append(timesteps)
+
+        print("Fixed validation noise and timesteps generated.")
+
+
     @torch.no_grad()
     def validate(self, epoch):
 
@@ -364,16 +396,28 @@ class Trainer:
 
         running_loss = 0.0
 
-        for x_0 in tqdm(
-            self.val_loader,
-            desc="Validation",
-            leave=False
+        for batch_idx, x_0 in enumerate(
+            tqdm(
+                self.val_loader,
+                desc="Validation",
+                leave=False
+            )
         ):
 
-            # Automatically handles RGB or precomputed latent input.
             x_0 = self.prepare_input(
                 x_0,
                 training=False
+            )
+
+            # Retrieve fixed validation inputs.
+            noise = self.fixed_val_noise[batch_idx].to(
+                self.device,
+                non_blocking=True
+            )
+
+            timesteps = self.fixed_val_timesteps[batch_idx].to(
+                self.device,
+                non_blocking=True
             )
 
             with torch.autocast(
@@ -382,7 +426,11 @@ class Trainer:
                 enabled=self.use_amp
             ):
 
-                pred_noise, actual_noise = self.ddpm(x_0)
+                pred_noise, actual_noise = self.ddpm(
+                    x_0,
+                    timesteps=timesteps,
+                    noise=noise
+                )
 
                 loss = F.mse_loss(
                     pred_noise.float(),
