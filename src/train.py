@@ -12,6 +12,8 @@ from tqdm import tqdm
 
 from dataset_loader import CelebADataset
 
+from diffusers import AutoencoderKL
+
 class Trainer:
     def __init__(
         self,
@@ -36,7 +38,24 @@ class Trainer:
 
         self.ddpm = ddpm
 
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+
         self.config = config
+
+        self.latent_denoise = config["latent_denoise"]
+        self.vae = None
+        self.scaling_factor = None
+
+        if self.latent_denoise:
+            self.vae = AutoencoderKL.from_pretrained(
+                "stabilityai/sd-vae-ft-mse"
+            ).to(self.device)
+
+            self.vae.eval()
+            self.vae.requires_grad_(False)
+            self.scaling_factor = self.vae.config.scaling_factor
 
         self.batch_size = batch_size
         self.image_size = image_size
@@ -49,9 +68,6 @@ class Trainer:
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
 
         self.use_amp = use_amp and self.device.type == "cuda"
 
@@ -151,12 +167,13 @@ class Trainer:
         self.run = wandb.init(
             project=project_name,
             name=run_name,
-            id="wjh3gscw",
+            # id="wjh3gscw",
             config={
                 **config,
                 "batch_size": batch_size,
                 "image_size": image_size,
                 "epochs": epochs,
+                "latent_denoise": self.latent_denoise,
                 "learning_rate": learning_rate,
                 "weight_decay": weight_decay,
                 "optimizer": "AdamW",
@@ -178,6 +195,7 @@ class Trainer:
         print("=" * 60)
         print(f"Device:          {self.device}")
         print(f"Mixed precision: {self.use_amp}")
+        print(f"Latent Denoise : {'Enabled' if self.latent_denoise else 'Disabled'}")
         print(f"Dataset size:    {len(dataset)}")
         print(f"Training images: {train_size}")
         print(f"Validation:      {val_size}")
@@ -186,6 +204,20 @@ class Trainer:
         print(f"Training steps:  {len(self.train_loader)} per epoch")
         print(f"W&B run:         {self.run.url}")
         print("=" * 60)
+
+    @torch.no_grad()
+    def prepare_input(self, images):
+        """
+        handles both modes [latent_denoising or pixel_denoising spaces]
+        """
+        images = images.to(self.device)
+
+        if self.latent_denoise:
+            latents = self.vae.encode(images).latent_dist.sample()
+            latents = latents * self.scaling_factor
+            return latents
+
+        return images
 
     # ========================================================
     # Reproducibility
@@ -218,7 +250,7 @@ class Trainer:
         )
 
         for batch_idx, x_0 in enumerate(progress):
-
+            x_0 = self.prepare_input(x_0) # if self.latent_denoise is enabled then this will be z_0
             x_0 = x_0.to(
                 self.device,
                 non_blocking=True
@@ -325,7 +357,6 @@ class Trainer:
     # ========================================================
 
     def save_checkpoint(self, filename):
-
         checkpoint = {
             "epoch": self.current_epoch + 1,
             "global_step": self.global_step,
