@@ -47,6 +47,16 @@ ddpm = DDPM(
 x_0 = load_test_img()
 ```
 
+## Sampling
+
+Generate images using a trained checkpoint:
+
+```bash
+python sample.py --batch_size 4 --checkpoint ./checkpoint/best.pt
+```
+
+The sampling pipeline loads the checkpoint and generates images through iterative reverse diffusion, starting from Gaussian noise.
+
 ## Training & Evaluation
 
 The [`train.ipynb`](train.ipynb) notebook demonstrates the training workflow, model evaluation, and reverse diffusion sampling.
