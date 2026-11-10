@@ -2,7 +2,7 @@ DEBUG = True
 
 config = {
     "T": 1000,
-    "batch_size": 8,
+    "batch_size": 64,
 
     # Diffusion mode
     "latent_denoise": True,
