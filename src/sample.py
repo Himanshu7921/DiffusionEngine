@@ -115,6 +115,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DDPM Image Generation Script")
     parser.add_argument("--batch_size", type=int, default=4, help="Number of images to generate")
     parser.add_argument("--checkpoint", type=str, default="./checkpoint/best.pt", help="Path to the model checkpoint")
+    parser.add_argument("--weights", type=str, choices=["ema", "original"], default="ema")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -160,8 +161,9 @@ if __name__ == "__main__":
     unet = UNet(
         in_channels=active_config["in_channels"],
         out_channels=active_config["out_channels"],
+        channel_multipliers = (1, 2, 4, 8),
         time_embd_dim=active_config["time_embed"],
-        base_channels=64
+        base_channels = 64
     )
 
     # Noise prediction pipeline
@@ -176,8 +178,19 @@ if __name__ == "__main__":
         noise_prediction_pipeline=noise_prediction_pipeline
     )
 
-    # Restore model weights
-    ddpm.load_state_dict(checkpoint["model_state_dict"])
+    # Restore EMA model weights
+    if args.weights == "ema" and "ema_model_state_dict" in checkpoint:
+        state_dict = checkpoint["ema_model_state_dict"]
+        print("Loaded EMA model weights.")
+
+    else: # original model weights
+        state_dict = checkpoint["model_state_dict"]
+        print("EMA weights unavailable. Loaded original model weights.")
+
+
+    ema_enabled = (args.weights == "ema" and "ema_model_state_dict" in checkpoint)
+
+    ddpm.load_state_dict(state_dict, strict=True)
     ddpm.to(device)
     ddpm.eval()
 
@@ -190,7 +203,7 @@ if __name__ == "__main__":
     print(f"Checkpoint Loss  : {checkpoint.get('best_val_loss', 'Unknown')}")
     print(f"Latent Denoising : {active_config['latent_denoise']}")
     print(f"Precomputed Latents: {'Enabled' if active_config['precomputed_latents'] else 'Disabled'}")
-
+    print(f"EMA Inference: {'Enabled' if ema_enabled else 'Disabled'}")
     print(f"Input Channels   : {active_config['in_channels']}")
     print(f"Output Channels  : {active_config['out_channels']}")
     print("-" * 60)
