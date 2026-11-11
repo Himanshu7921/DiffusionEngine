@@ -2,7 +2,7 @@
   <img src="assets/logo/diffusionengine-logov4.png" height="130" alt="DiffusionEngine Logo">
 </p>
 
-<h1 align="center">DiffusionEngine</h1>
+<!-- <h1 align="center">DiffusionEngine</h1> -->
 
 <p align="center">
   A modular, research-oriented diffusion framework built with PyTorch.
