@@ -41,7 +41,7 @@ class DDPM(nn.Module):
         (x_t, actual_noise), t = self.noise_injection_pipieline(x_0, timesteps = timesteps, noise = noise)
         self.t = t
         pred_noise = self.noise_prediction_pipeline(x_t, t)
-        return pred_noise, actual_noise # ([B, C, H, W], [B, C, H, W])
+        return pred_noise, actual_noise, t # ([B, C, H, W], [B, C, H, W])
 
 
 # if __name__ == "__main__":
