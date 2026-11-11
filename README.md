@@ -68,7 +68,7 @@ Rather than maintaining isolated implementations, DiffusionEngine focuses on int
 ## Results
 
 <p align="center">
-  <img src="assets/generated_result.png" alt="Images generated using DiffusionEngine" width="100%">
+  <img src="assets/Figure_1.png" alt="Images generated using DiffusionEngine" width="100%">
 </p>
 
 <p align="center">
