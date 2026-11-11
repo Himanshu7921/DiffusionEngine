@@ -1,38 +1,50 @@
-# DiffusionEngine
+<p align="center">
+  <img src="assets/diffusionengine-logo.png" height="130" alt="DiffusionEngine Logo">
+</p>
 
-### A Modern, Modular Diffusion Framework Built with PyTorch
+<h1 align="center">DiffusionEngine</h1>
 
 <p align="center">
-  <img src="assets/ddpm_architecture.png" alt="DiffusionEngine architecture" width="100%">
+  A modular, research-oriented diffusion framework built with PyTorch.
 </p>
 
 <p align="center">
-  <strong>Understanding diffusion models. Implementing the mathematics. Building a unified framework.</strong>
+  <a href="https://github.com/Himanshu7921/DiffusionEngine/stargazers">
+    <img src="https://img.shields.io/github/stars/Himanshu7921/DiffusionEngine?style=flat-square&logo=github" alt="GitHub Stars">
+  </a>
+  <a href="https://github.com/Himanshu7921/DiffusionEngine/network/members">
+    <img src="https://img.shields.io/github/forks/Himanshu7921/DiffusionEngine?style=flat-square&logo=github" alt="GitHub Forks">
+  </a>
+  <a href="https://github.com/Himanshu7921/DiffusionEngine/issues">
+    <img src="https://img.shields.io/github/issues/Himanshu7921/DiffusionEngine?style=flat-square" alt="Issues">
+  </a>
+  <a href="https://github.com/Himanshu7921/DiffusionEngine/pulls">
+    <img src="https://img.shields.io/github/issues-pr/Himanshu7921/DiffusionEngine?style=flat-square" alt="Pull Requests">
+  </a>
+  <img src="https://img.shields.io/badge/PyTorch-Framework-EE4C2C?style=flat-square&logo=pytorch&logoColor=white" alt="PyTorch">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
+  <img src="https://img.shields.io/badge/Status-Under%20Development-orange?style=flat-square" alt="Under Development">
 </p>
 
-DiffusionEngine is an open-source PyTorch project focused on implementing, understanding, and extending modern diffusion models from scratch.
-
-The project aims to bring established diffusion algorithms, research-based improvements, training strategies, and sampling methods together within a unified and extensible framework.
-
-Rather than maintaining independent implementations for every algorithm, DiffusionEngine emphasizes modularity, configurability, mathematical correctness, and seamless integration across the entire training and inference pipeline.
-
----
+<p align="center">
+  <a href="#overview">Overview</a> •
+  <a href="#features">Features</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#contributing">Contributing</a>
+</p>
 
 ## Overview
 
-The foundation of DiffusionEngine is a modular implementation of **Denoising Diffusion Probabilistic Models (DDPM)** based on the original paper by Ho et al. (2020).
+DiffusionEngine is an open-source PyTorch framework for implementing, experimenting with, and extending diffusion models.
 
-The implementation covers the complete diffusion process:
+The project aims to bring modern diffusion algorithms into a unified, modular ecosystem with reusable components, configurable training pipelines, and extensible sampling methods.
 
-- Forward diffusion and noise injection.
-- Timestep-conditioned noise prediction using U-Net.
-- Reverse diffusion and image generation.
-- Pixel-space and latent-space diffusion.
-- Training and validation pipelines.
-- Checkpoint management and restoration.
-- Training optimization techniques.
+Rather than maintaining isolated implementations, DiffusionEngine focuses on integrating different diffusion approaches into a consistent architecture.
 
-The framework is designed to evolve alongside diffusion research, making it possible to experiment with different algorithms and improvements without restructuring the entire implementation.
+**Built for experimentation. Designed for extensibility.**
+
+---
 
 ## Key Features
 
