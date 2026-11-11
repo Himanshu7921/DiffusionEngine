@@ -2,6 +2,7 @@ import random
 from pathlib import Path
 
 import numpy as np
+import copy # for maintaining EMA of DDPM's params
 import torch
 import torch.nn.functional as F
 import wandb
@@ -22,7 +23,8 @@ class Trainer:
         dataset_path="data/celeba/img_align_celeba",
         batch_size=32,
         image_size=64,
-        epochs=100,
+        epochs = 100,
+        warmup_epochs = 10,
         learning_rate=1e-4,
         weight_decay=1e-4,
         validation_split=0.05,
@@ -33,6 +35,7 @@ class Trainer:
         project_name="DiffusionLab",
         run_name="DDPM-CelebA",
         seed=42,
+        use_min_snr_loss: bool = True,
         use_amp=True
     ):
 
@@ -42,7 +45,9 @@ class Trainer:
             "cuda" if torch.cuda.is_available() else "cpu"
         )
 
+
         self.config = config
+        self.use_min_snr_loss = use_min_snr_loss # paper: https://arxiv.org/pdf/2303.09556 | Solves unstable DDPM's training
 
         self.latent_denoise = config["latent_denoise"]
         self.vae = None
@@ -95,8 +100,13 @@ class Trainer:
         # ----------------------------------------------------
         # Model
         # ----------------------------------------------------
-
         self.ddpm = self.ddpm.to(self.device)
+
+        # for maintaining a EMA of DDPM's param
+        self.ema_ddpm = copy.deepcopy(self.ddpm)
+        self.ema_decay = 0.9999
+        self.ema_ddpm.eval()
+        self.ema_ddpm.requires_grad_(False)
 
         # ----------------------------------------------------
         # Dataset and DataLoaders
@@ -157,21 +167,32 @@ class Trainer:
         # ----------------------------------------------------
         # Optimizer
         # ----------------------------------------------------
-
         self.optimizer = torch.optim.AdamW(
             self.ddpm.parameters(),
             lr=learning_rate,
             weight_decay=weight_decay
         )
 
-        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
             self.optimizer,
-            mode="min",
-            factor=0.5,
-            patience=15,
-            threshold=1e-3,
-            threshold_mode="rel",
-            min_lr=1e-6
+            start_factor=0.1,
+            end_factor=1.0,
+            total_iters=warmup_epochs
+        )
+
+        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer,
+            T_max = epochs - warmup_epochs,
+            eta_min=1e-5
+        )
+
+        self.lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
+            self.optimizer,
+            schedulers=[
+                warmup_scheduler,
+                cosine_scheduler
+            ],
+            milestones=[warmup_epochs]
         )
 
         # ----------------------------------------------------
@@ -221,6 +242,7 @@ class Trainer:
         print(f"Mixed precision: {self.use_amp}")
         print(f"Latent Denoise : {'Enabled' if self.latent_denoise else 'Disabled'}")
         print(f"Precomputed Latents: {'Enabled' if self.precomputed_latents else 'Disabled'}")
+        print(f"Loss: {'MIN-SNR-Loss' if self.use_min_snr_loss else 'MSR-Loss'}")
         print(f"Dataset size:    {len(dataset)}")
         print(f"Training images: {train_size}")
         print(f"Validation:      {val_size}")
@@ -229,6 +251,34 @@ class Trainer:
         print(f"Training steps:  {len(self.train_loader)} per epoch")
         print(f"W&B run:         {self.run.url}")
         print("=" * 60)
+
+
+    def min_snr_loss(self, pred_noise: torch.Tensor, actual_noise: torch.Tensor, timesteps: torch.Tensor, alpha_cumprod: torch.Tensor, gamma: float = 5.0):
+        """
+        re-weights the contributions of loss accross different timesteps, according to the method discussed in the below paper
+        > Efficient Diffusion Training via Min-SNR Weighting Strategy: https://arxiv.org/pdf/2303.09556
+        """
+        # Ensure numerically stable calculations
+        pred_noise = pred_noise.float()
+        actual_noise = actual_noise.float()
+        alpha_bar = alpha_cumprod[timesteps].float()
+
+        # Calculate Signal-to-Noise Ratio (SNR)
+        snr = alpha_bar / (1.0 - alpha_bar).clamp(min=1e-8)
+
+        # re-calculate weights according to SNR
+        weights = torch.minimum(snr, torch.full_like(snr, gamma)) / snr.clamp(1e-8)
+
+        loss = F.mse_loss(
+            pred_noise, actual_noise, reduction = 'none'
+        ).mean(dim = (1, 2, 3))
+
+        return (loss * weights).mean()
+
+    @torch.no_grad()
+    def update_ema(self):
+        for ema_param, model_param in zip(self.ema_ddpm.parameters(), self.ddpm.parameters()):
+            ema_param.lerp_(model_param, 1.0 - self.ema_decay)
 
 
     @torch.no_grad()
@@ -304,12 +354,23 @@ class Trainer:
                 enabled=self.use_amp
             ):
 
-                pred_noise, actual_noise = self.ddpm(x_0)
+                pred_noise, actual_noise, timesteps = self.ddpm(x_0)
 
-                loss = F.mse_loss(
-                    pred_noise.float(),
-                    actual_noise.float()
-                )
+                if not self.use_min_snr_loss:
+                    loss = F.mse_loss(
+                        pred_noise.float(),
+                        actual_noise.float()
+                    )
+                else:
+                    alpha_cumprod = self.ddpm.noise_injection_pipieline.noise_injector.alpha_bar
+                    loss = self.min_snr_loss(
+                        pred_noise=pred_noise,
+                        actual_noise=actual_noise,
+                        timesteps = timesteps,
+                        alpha_cumprod = alpha_cumprod,
+                        gamma=5.0
+                    )
+
 
             # Backpropagation.
             self.scaler.scale(loss).backward()
@@ -321,8 +382,16 @@ class Trainer:
                 max_norm=1.0
             )
 
+            old_scale = self.scaler.get_scale() # for EMA
+
             self.scaler.step(self.optimizer)
             self.scaler.update()
+
+            new_scale = self.scaler.get_scale() # for EMA
+
+            # Update EMA only if optimizer step was not skipped.
+            if new_scale >= old_scale:
+                self.update_ema()
 
             loss_value = loss.item()
 
@@ -395,6 +464,7 @@ class Trainer:
             self.vae.eval()
 
         running_loss = 0.0
+        alpha_cumprod = self.ddpm.noise_injection_pipieline.noise_injector.alpha_bar
 
         for batch_idx, x_0 in enumerate(
             tqdm(
@@ -426,16 +496,26 @@ class Trainer:
                 enabled=self.use_amp
             ):
 
-                pred_noise, actual_noise = self.ddpm(
+                pred_noise, actual_noise, _ = self.ddpm(
                     x_0,
                     timesteps=timesteps,
                     noise=noise
                 )
 
-                loss = F.mse_loss(
-                    pred_noise.float(),
-                    actual_noise.float()
-                )
+                if self.config["use_min_snr_loss"]:
+                    loss = self.min_snr_loss(
+                        pred_noise=pred_noise,
+                        actual_noise=actual_noise,
+                        timesteps=timesteps,
+                        alpha_cumprod=alpha_cumprod,
+                        gamma=5.0
+                    )
+
+                else:
+                    loss = F.mse_loss(
+                        pred_noise.float(),
+                        actual_noise.float()
+                    )
 
             running_loss += loss.item()
 
@@ -450,6 +530,7 @@ class Trainer:
             "epoch": self.current_epoch + 1,
             "global_step": self.global_step,
             "model_state_dict": self.ddpm.state_dict(),
+            "ema_model_state_dict": self.ema_ddpm.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
             "scheduler_state_dict": self.lr_scheduler.state_dict(),
             "scaler_state_dict": self.scaler.state_dict(),
@@ -476,6 +557,11 @@ class Trainer:
             checkpoint_path,
             map_location=self.device,
             weights_only=False
+        )
+
+        # restore the ema_ddpm's param
+        self.ema_ddpm.load_state_dict(
+            checkpoint["ema_model_state_dict"]
         )
 
         self.ddpm.load_state_dict(
@@ -572,7 +658,7 @@ class Trainer:
             val_loss = self.validate(epoch)
 
             # Update scheduler using validation loss.
-            self.lr_scheduler.step(val_loss)
+            self.lr_scheduler.step()
 
             current_lr = self.optimizer.param_groups[0]["lr"]
 
