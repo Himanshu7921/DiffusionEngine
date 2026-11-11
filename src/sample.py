@@ -161,9 +161,11 @@ if __name__ == "__main__":
     unet = UNet(
         in_channels=active_config["in_channels"],
         out_channels=active_config["out_channels"],
-        channel_multipliers = (1, 2, 4, 8),
+        channel_multipliers=active_config.get(
+            "channel_multipliers", (1, 2, 4, 8)
+        ),
         time_embd_dim=active_config["time_embed"],
-        base_channels = 64
+        base_channels=active_config.get("base_channels", 64)
     )
 
     # Noise prediction pipeline
@@ -178,14 +180,20 @@ if __name__ == "__main__":
         noise_prediction_pipeline=noise_prediction_pipeline
     )
 
-    # Restore EMA model weights
-    if args.weights == "ema" and "ema_model_state_dict" in checkpoint:
-        state_dict = checkpoint["ema_model_state_dict"]
-        print("Loaded EMA model weights.")
+    if args.weights == "ema":
+        if "ema_model_state_dict" not in checkpoint:
+            print("EMA weights unavailable. Falling back to original weights.")
+            state_dict = checkpoint["model_state_dict"]
+            ema_enabled = False
+        else:
+            state_dict = checkpoint["ema_model_state_dict"]
+            ema_enabled = True
+            print("Loaded EMA model weights.")
 
-    else: # original model weights
+    else:
         state_dict = checkpoint["model_state_dict"]
-        print("EMA weights unavailable. Loaded original model weights.")
+        ema_enabled = False
+        print("Loaded original model weights.")
 
 
     ema_enabled = (args.weights == "ema" and "ema_model_state_dict" in checkpoint)
