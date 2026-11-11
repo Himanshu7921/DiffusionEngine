@@ -8,6 +8,8 @@ config = {
     "latent_denoise": True,
     "precomputed_latents": True,
 
+    "channel_multipliers": (1, 2, 4, 8),
+
     "image_size": 256,
 
     # Noise schedule
