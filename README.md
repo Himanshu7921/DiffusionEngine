@@ -302,7 +302,7 @@ However, different timesteps can contribute differently to optimization. Min-SNR
 The signal-to-noise ratio is defined as:
 
 $$
-\operatorname{SNR}(t) =
+\mathrm{SNR}(t) =
 \frac{\bar{\alpha}_t}{1-\bar{\alpha}_t}
 $$
 
@@ -310,8 +310,8 @@ For epsilon prediction, the Min-SNR weighting function is:
 
 $$
 w(t) =
-\frac{\min(\operatorname{SNR}(t),\gamma)}
-{\operatorname{SNR}(t)}
+\frac{\min(\mathrm{SNR}(t),\gamma)}
+{\mathrm{SNR}(t)}
 $$
 
 The resulting objective is:
