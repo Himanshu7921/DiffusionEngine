@@ -1,60 +1,81 @@
-# DDPM - PyTorch
-### A Modular Implementation of Denoising Diffusion Probabilistic Models
+# DiffusionEngine
+
+### A Modern, Modular Diffusion Framework Built with PyTorch
 
 <p align="center">
-  <img src="assets/ddpm_architecture.png" alt="DDPM Forward and Reverse Diffusion Process" width="100%">
+  <img src="assets/ddpm_architecture.png" alt="DiffusionEngine architecture" width="100%">
 </p>
 
-**From Gaussian noise to realistic images. Built from scratch in PyTorch.**
+<p align="center">
+  <strong>Understanding diffusion models. Implementing the mathematics. Building a unified framework.</strong>
+</p>
 
-A modular implementation of **Denoising Diffusion Probabilistic Models (DDPM)** based on the foundational paper by Ho et al. (2020).
+DiffusionEngine is an open-source PyTorch project focused on implementing, understanding, and extending modern diffusion models from scratch.
 
-This project implements the complete diffusion pipeline, from forward noise injection and timestep-conditioned noise prediction to reverse diffusion and image generation. It supports both **pixel-space and latent-space diffusion**, with additional training improvements including **Exponential Moving Average (EMA)** and **Min-SNR loss weighting**.
+The project aims to bring established diffusion algorithms, research-based improvements, training strategies, and sampling methods together within a unified and extensible framework.
 
-The implementation is designed to be configurable, extensible, and suitable for experimentation with diffusion architectures and training strategies.
+Rather than maintaining independent implementations for every algorithm, DiffusionEngine emphasizes modularity, configurability, mathematical correctness, and seamless integration across the entire training and inference pipeline.
+
+---
+
+## Overview
+
+The foundation of DiffusionEngine is a modular implementation of **Denoising Diffusion Probabilistic Models (DDPM)** based on the original paper by Ho et al. (2020).
+
+The implementation covers the complete diffusion process:
+
+- Forward diffusion and noise injection.
+- Timestep-conditioned noise prediction using U-Net.
+- Reverse diffusion and image generation.
+- Pixel-space and latent-space diffusion.
+- Training and validation pipelines.
+- Checkpoint management and restoration.
+- Training optimization techniques.
+
+The framework is designed to evolve alongside diffusion research, making it possible to experiment with different algorithms and improvements without restructuring the entire implementation.
+
+## Key Features
+
+| Component | Capabilities |
+|---|---|
+| DDPM | Modular forward and reverse diffusion |
+| U-Net | Timestep-conditioned noise prediction |
+| Noise Scheduling | Configurable linear noise schedule |
+| Pixel-Space Diffusion | Direct diffusion over RGB images |
+| Latent-Space Diffusion | Diffusion over compressed VAE representations |
+| VAE Integration | Pretrained Stable Diffusion VAE |
+| Min-SNR Weighting | Timestep-aware loss reweighting |
+| EMA | Exponential moving average of model parameters |
+| Validation | Consistent validation using fixed noise and timesteps |
+| Checkpointing | Model, optimizer, scheduler, scaler, and EMA state restoration |
+| Sampling | Generation using EMA or original model weights |
+| CLI | Configurable training and inference workflows |
 
 ---
 
 ## Results
 
 <p align="center">
-  <img src="assets/generated_result.png" alt="Images generated using the trained DDPM model" width="100%">
+  <img src="assets/generated_result.png" alt="Images generated using DiffusionEngine" width="100%">
 </p>
-<p align="center">  Generated samples from the trained diffusion model </p>
 
----
-
-## What Makes This Implementation Different?
-
-Diffusion models involve more than learning to predict noise. Training stability, timestep sampling, parameter selection, and inference quality all influence the final generation results.
-
-This implementation brings these components together in a modular pipeline.
-
-### Core Capabilities
-
-| Feature | Description |
-|---|---|
-| DDPM from scratch | Complete forward and reverse diffusion processes |
-| U-Net backbone | Timestep-conditioned noise prediction |
-| Configurable noise scheduler | Linear beta scheduling with configurable diffusion steps |
-| Pixel-space diffusion | Direct diffusion over RGB images |
-| Latent-space diffusion | Diffusion over compressed VAE representations |
-| Pretrained VAE integration | Hugging Face Diffusers `AutoencoderKL` |
-| Min-SNR weighting | Timestep-aware loss reweighting |
-| Exponential Moving Average | Smoothed model parameters for inference |
-| Validation pipeline | Fixed noise and timesteps for consistent evaluation |
-| Checkpoint management | Model, optimizer, scheduler, scaler, and EMA restoration |
-| Flexible sampling | Generate images using EMA or original model weights |
+<p align="center">
+  <em>Generated samples from the trained diffusion model.</em>
+</p>
 
 ---
 
 ## Architecture
 
-The implementation separates the diffusion process into independent modules.
+DiffusionEngine separates the diffusion process into modular components.
+
+### Diffusion Pipeline
+
+The implementation consists of three primary stages.
 
 **1. Forward Diffusion**
 
-Gradually injects Gaussian noise into the original image or latent representation according to a predefined noise schedule.
+Gradually injects Gaussian noise into the original data according to a predefined noise schedule.
 
 $$
 x_t = \sqrt{\bar{\alpha}_t}x_0 +
@@ -63,7 +84,7 @@ $$
 
 **2. Noise Prediction**
 
-A timestep-conditioned U-Net receives the noisy sample \(x_t\) and timestep \(t\), and predicts the noise introduced during forward diffusion.
+A timestep-conditioned U-Net receives the noisy sample and timestep, then predicts the noise introduced during forward diffusion.
 
 $$
 \epsilon_\theta(x_t,t)
@@ -71,7 +92,7 @@ $$
 
 **3. Reverse Diffusion**
 
-The predicted noise is used to iteratively remove noise and reconstruct the original data distribution.
+The predicted noise is used to iteratively remove noise and reconstruct samples from the learned data distribution.
 
 $$
 x_{t-1} =
@@ -81,11 +102,24 @@ x_t -
 \frac{\beta_t}{\sqrt{1-\bar{\alpha}_t}}
 \epsilon_\theta(x_t,t)
 \right)
-+
-\sigma_t z
++\sigma_t z
 $$
 
-The implementation uses the standard DDPM ancestral sampling procedure.
+The current implementation uses the standard DDPM ancestral sampling procedure.
+
+### Modular Design
+
+The diffusion process is separated into reusable components:
+
+| Component | Responsibility |
+|---|---|
+| `NoiseInjectionPipeline` | Forward diffusion and noise injection |
+| `NoisePredictionPipeline` | Timestep-conditioned noise prediction |
+| `UNet` | Noise prediction backbone |
+| `DDPM` | Complete diffusion model |
+| `Trainer` | Training, validation, optimization, and checkpointing |
+
+Each component can be configured or extended independently while preserving the overall workflow.
 
 ---
 
@@ -94,8 +128,8 @@ The implementation uses the standard DDPM ancestral sampling procedure.
 Clone the repository:
 
 ```bash
-git clone https://github.com/Himanshu7921/DDPM-PyTorch.git
-cd DDPM-PyTorch
+git clone https://github.com/Himanshu7921/DiffusionEngine.git
+cd DiffusionEngine
 ```
 
 Install the dependencies:
@@ -106,12 +140,61 @@ pip install diffusers transformers accelerate safetensors
 pip install matplotlib tqdm wandb
 ```
 
+For GPU acceleration, install a PyTorch build compatible with your CUDA environment. Refer to the [official PyTorch installation guide](https://pytorch.org/get-started/locally/).
+
+---
+
+## Quickstart
+
+### Initialize the DDPM Pipeline
+
+The complete DDPM architecture can be assembled using the existing modular components.
+
+```python
+from config import config
+from model import UNet
+from modules import NoiseInjectionPipeline
+from denoising_diffusion import NoisePredictionPipeline, DDPM
+
+# Forward diffusion
+noise_injection_pipeline = NoiseInjectionPipeline(
+    config=config,
+    random=True
+)
+
+# Noise prediction backbone
+unet = UNet(
+    in_channels=config["in_channels"],
+    out_channels=config["out_channels"],
+    channel_multipliers=(1, 2, 4, 8),
+    time_embd_dim=config["time_embed"],
+    base_channels=64
+)
+
+# Noise prediction pipeline
+noise_prediction_pipeline = NoisePredictionPipeline(
+    config=config,
+    noise_prediction_model=unet
+)
+
+# Complete DDPM
+ddpm = DDPM(
+    noise_injection_pipieline=noise_injection_pipeline,
+    noise_prediction_pipeline=noise_prediction_pipeline
+)
+```
+
+This constructs the complete diffusion model without coupling the individual components.
 
 ---
 
 ## Configuration
 
-The entire diffusion pipeline is controlled through `config.py`.
+The diffusion pipeline is controlled through `config.py`.
+
+The configuration determines the diffusion schedule, model input dimensions, training behavior, and diffusion mode.
+
+Example configuration:
 
 ```python
 config = {
@@ -139,66 +222,219 @@ config = {
 }
 ```
 
-The U-Net input and output channels are configured automatically:
+The U-Net input and output channels are determined by the selected diffusion mode:
 
 ```python
 config["in_channels"] = 4 if config["latent_denoise"] else 3
 config["out_channels"] = 4 if config["latent_denoise"] else 3
 ```
 
-The configuration also controls the diffusion schedule, training behavior, validation, and sampling.
+The configuration system provides the default experiment settings. User-facing options can also be overridden through command-line arguments.
 
 ---
 
-## Initialize the DDPM Pipeline
+## Training
 
-The architecture is constructed using three primary components.
+DiffusionEngine provides a dedicated training entry point through `train.py`.
 
-```python
-# Initialize the forward diffusion process
-noise_injection_pipeline = NoiseInjectionPipeline(
-    config=config,
-    random=True
-)
+The training implementation is separated from the execution script:
 
-# Initialize the U-Net noise prediction backbone
-unet = UNet(
-    in_channels=config["in_channels"],
-    out_channels=config["out_channels"],
-    time_embd_dim=config["time_embed"],
-    base_channels=64
-)
+- `trainer/trainer.py` contains the Trainer implementation.
+- `train.py` handles model initialization, configuration, command-line arguments, checkpoint restoration, and training execution.
 
-# Initialize the noise prediction pipeline
-noise_prediction_pipeline = NoisePredictionPipeline(
-    config=config,
-    noise_prediction_model=unet
-)
+This separation keeps the training logic reusable while providing a consistent interface for launching experiments.
 
-# Assemble the complete DDPM pipeline
-ddpm = DDPM(
-    noise_injection_pipieline=noise_injection_pipeline,
-    noise_prediction_pipeline=noise_prediction_pipeline
-)
+### Basic Usage
+
+```bash
+python train.py --dataset_path <PATH_TO_DATASET>
 ```
 
-Each component can be independently configured or extended without changing the overall DDPM workflow.
+The dataset path is required. Other arguments can be configured through the command line or the default configuration.
+
+### Available Arguments
+
+**Dataset**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--dataset_path` | Required | Training dataset path |
+
+**Training**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--epochs` | `350` | Number of training epochs |
+| `--batch_size` | Config value | Training batch size |
+| `--learning_rate` | `1e-4` | Initial learning rate |
+| `--warmup_epochs` | `10` | Learning-rate warmup duration |
+
+**Model**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--base_channels` | `64` | U-Net base channel width |
+
+**Optimization**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--use_min_snr_loss` | Config value | Enable Min-SNR loss |
+| `--no-use_min_snr_loss` | Config value | Disable Min-SNR loss |
+| `--use_amp` | Config value | Enable mixed precision |
+| `--no-use_amp` | Config value | Disable mixed precision |
+
+**Checkpointing**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--checkpoint_dir` | `./checkpoint` | Checkpoint directory |
+| `--checkpoint_every` | `10` | Checkpoint saving frequency |
+| `--resume` | `None` | Checkpoint path for resuming training |
+
+**Experiment Tracking**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--project_name` | `DiffusionEngine` | Experiment project |
+| `--run_name` | `DDPM-Experiment` | Experiment run name |
+
+**Data Loading**
+
+| Argument | Default | Description |
+|---|---|---|
+| `--num_workers` | `4` | Data-loading workers |
+| `--validation_split` | `0.05` | Validation dataset fraction |
+
+### Training Examples
+
+**Basic training**
+
+```bash
+python train.py \
+    --dataset_path ../data/celeba/celeba_latents.pt
+```
+
+**Custom training configuration**
+
+```bash
+python train.py \
+    --dataset_path ../data/celeba/celeba_latents.pt \
+    --epochs 350 \
+    --batch_size 4 \
+    --learning_rate 1e-4 \
+    --warmup_epochs 10
+```
+
+**Enable Min-SNR loss**
+
+```bash
+python train.py \
+    --dataset_path ../data/celeba/celeba_latents.pt \
+    --use_min_snr_loss
+```
+
+**Enable mixed-precision training**
+
+```bash
+python train.py \
+    --dataset_path ../data/celeba/celeba_latents.pt \
+    --use_amp
+```
+
+**Resume training**
+
+```bash
+python train.py \
+    --dataset_path ../data/celeba/celeba_latents.pt \
+    --resume ./checkpoint/celeba_256/latest.pt
+```
+
+**Complete experiment configuration**
+
+```bash
+python train.py \
+    --dataset_path ../data/celeba/celeba_latents.pt \
+    --epochs 350 \
+    --batch_size 4 \
+    --learning_rate 1e-4 \
+    --warmup_epochs 10 \
+    --base_channels 64 \
+    --use_min_snr_loss \
+    --no-use_amp \
+    --validation_split 0.05 \
+    --checkpoint_dir ./checkpoint/celeba_256 \
+    --checkpoint_every 10 \
+    --project_name DiffusionEngine \
+    --run_name DDPM-CelebA-HQ-256x256 \
+    --num_workers 4
+```
+
+### Configuration Priority
+
+The framework follows a consistent configuration precedence:
+
+1. Command-line arguments override their corresponding configuration values.
+2. Values from `config.py` are used when arguments are omitted.
+3. Built-in defaults are used where applicable.
+
+This allows different experiments to be launched without modifying the underlying implementation.
 
 ---
 
-## Pixel-Space Diffusion
+## Sampling
 
-<badge color="success">RGB Diffusion</badge>
+Generate images using a trained checkpoint through `sample.py`.
 
-By default, the model operates directly on RGB images.
+### Basic Sampling
 
-Enable this mode using:
+```bash
+python sample.py \
+    --batch_size 4 \
+    --checkpoint ./checkpoint/best.pt
+```
+
+### Select Model Weights
+
+The sampling pipeline supports both original and EMA model weights.
+
+**EMA weights**
+
+```bash
+python sample.py \
+    --batch_size 4 \
+    --checkpoint ./checkpoint/best.pt \
+    --weights ema
+```
+
+**Original model weights**
+
+```bash
+python sample.py \
+    --batch_size 4 \
+    --checkpoint ./checkpoint/best.pt \
+    --weights original
+```
+
+EMA weights are selected by default when available.
+
+The sampling pipeline loads the selected weights directly into the DDPM model. A Trainer instance is not required during inference.
+
+---
+
+## Diffusion Modes
+
+DiffusionEngine supports two diffusion modes.
+
+### Pixel-Space Diffusion
+
+In pixel-space diffusion, the model operates directly on RGB images.
+
+Enable it through the configuration:
 
 ```python
 config["latent_denoise"] = False
 ```
-
-The U-Net learns to predict noise directly in the original image space.
 
 For an image resolution of 256 × 256:
 
@@ -208,46 +444,28 @@ For an image resolution of 256 × 256:
 | Noisy image | `(B, 3, 256, 256)` |
 | U-Net noise prediction | `(B, 3, 256, 256)` |
 
-This mode provides a direct implementation of image-space diffusion without requiring a pretrained VAE.
+This mode provides direct image-space diffusion without requiring a pretrained VAE.
 
----
-
-## Latent-Space Diffusion
-
-<badge color="info">Compressed Representation</badge>
+### Latent-Space Diffusion
 
 Training diffusion models directly on high-resolution images can be computationally expensive.
 
-To address this, the implementation supports **latent-space diffusion**, where the diffusion model operates on compressed representations generated by a pretrained Variational Autoencoder.
+Latent-space diffusion addresses this by operating on compressed representations generated by a pretrained Variational Autoencoder.
 
-Instead of learning the image distribution directly, DDPM learns the distribution of the VAE's latent representations.
+The implementation supports Hugging Face Diffusers' `AutoencoderKL` using: [Stable Diffusion VAE – sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse)
 
-### Pretrained VAE
-
-The implementation uses Hugging Face Diffusers' `AutoencoderKL` with: [Stable Diffusion VAE: sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse)
-
-Install the required dependencies:
-
-```bash
-pip install diffusers transformers accelerate safetensors
-```
-
-### Enable Latent-Space Diffusion
+Enable latent-space diffusion:
 
 ```python
 config["latent_denoise"] = True
 ```
 
-The U-Net channel dimensions are automatically configured:
+The U-Net input and output channels are configured accordingly:
 
 ```python
 config["in_channels"] = 4
 config["out_channels"] = 4
 ```
-
-The pretrained VAE is loaded by the training and sampling pipelines when latent denoising is enabled.
-
-### How It Works
 
 For a 256 × 256 RGB image:
 
@@ -263,49 +481,36 @@ The VAE applies a spatial downsampling factor of 8.
 
 The latent representation is multiplied by the VAE's configured `scaling_factor` before diffusion and divided by the same factor before decoding.
 
-### Latent-Space Training Workflow
+The VAE remains frozen during diffusion training.
+
+**Latent-space training workflow**
 
 1. Load the pretrained VAE and freeze its parameters.
 2. Encode RGB images into latent representations.
-3. Apply the forward diffusion process to the latent representations.
+3. Apply forward diffusion to the latent representations.
 4. Predict the injected noise using the U-Net.
 5. Optimize the noise prediction objective.
 
-The VAE remains frozen while the diffusion model is trained.
-
-### Sampling Workflow
-
-After reverse diffusion, the generated latent representations are passed through the pretrained VAE decoder to reconstruct RGB images.
-
-The sampling pipeline automatically selects the appropriate initial noise dimensions:
-
-- Pixel-space: `(B, 3, 256, 256)`
-- Latent-space: `(B, 4, 32, 32)`
-
-The sampling function returns images normalized to the `[0, 1]` range in both modes.
+During sampling, the generated latent representations are passed through the pretrained VAE decoder to reconstruct RGB images.
 
 ---
 
 ## Training Improvements
 
-Training a diffusion model requires careful optimization across different noise levels. This implementation includes two complementary techniques to improve the training and inference workflow.
+DiffusionEngine currently incorporates two training techniques that improve the optimization and inference workflow.
 
 ### 1. Min-SNR Loss Weighting
 
-<badge color="success">Optional Training Strategy</badge>
+Standard DDPM training treats sampled timesteps equally when calculating the noise prediction loss.
 
-Standard DDPM training treats all sampled timesteps equally when calculating the noise prediction loss.
-
-However, different timesteps can contribute differently to optimization. Min-SNR weighting addresses this by reweighting the loss according to the signal-to-noise ratio at each timestep.
-
-The signal-to-noise ratio is defined as:
+Min-SNR weighting adjusts the contribution of each timestep according to its signal-to-noise ratio.
 
 $$
 \mathrm{SNR}(t) =
 \frac{\bar{\alpha}_t}{1-\bar{\alpha}_t}
 $$
 
-For epsilon prediction, the Min-SNR weighting function is:
+For epsilon prediction, the weighting function is:
 
 $$
 w(t) =
@@ -321,39 +526,28 @@ $$
 \left[
 w(t)
 \left\|
-\epsilon -
-\epsilon_\theta(x_t,t)
+\epsilon-\epsilon_\theta(x_t,t)
 \right\|_2^2
 \right]
 $$
 
 This reduces the relative contribution of timesteps with excessively high SNR, helping balance optimization across noise levels.
 
-**Enable or disable it directly through the configuration:**
+Enable it through:
 
 ```python
 config["use_min_snr_loss"] = True
 ```
 
-Disable it to use the standard noise prediction MSE objective:
+The default clipping parameter is `gamma = 5.0`.
 
-```python
-config["use_min_snr_loss"] = False
-```
-
-The implementation uses a default clipping parameter of $(\gamma=5.0)$.
-
-Min-SNR weighting changes the training objective; it does not change the forward diffusion process, U-Net architecture, or reverse sampling equations.
-
-Reference: [Efficient Diffusion Training via Min-SNR Weighting Strategy (Hang et al., 2023)](https://arxiv.org/abs/2303.09556)
+Reference: [Efficient Diffusion Training via Min-SNR Weighting Strategy (Hang et al., 2023)](https://arxiv.org/abs/2303.09556).
 
 ### 2. Exponential Moving Average (EMA)
 
-<badge color="success">Inference Optimization</badge>
+The implementation supports Exponential Moving Average of model parameters.
 
-The implementation also supports **Exponential Moving Average of model weights**.
-
-Instead of relying exclusively on the latest model parameters, EMA maintains a smoothed version of the model throughout training.
+EMA maintains a smoothed version of the model throughout training rather than relying exclusively on the latest parameter updates.
 
 The update rule is:
 
@@ -364,58 +558,26 @@ $$
 (1-\beta)\theta_t
 $$
 
-Where:
-- $\theta_t$ represents the current model parameters.
-- $\theta_t^{EMA}$ represents the averaged parameters.
-- $\beta$ controls the averaging decay.
+EMA provides:
 
-EMA reduces short-term fluctuations in model parameters and often produces more stable inference results.
-
-**Why use EMA?**
-
-- Maintains a smoothed set of model parameters during training.
-- Reduces sensitivity to recent parameter updates.
-- Provides an alternative set of weights for image generation.
-- Allows direct comparison between original and averaged model weights.
+- A smoothed set of model parameters.
+- Reduced sensitivity to recent parameter updates.
+- An alternative set of weights for inference.
+- The ability to compare original and averaged model weights.
 
 The EMA model is maintained separately from the training model. Its parameters can be saved in checkpoints and restored independently.
 
-### Sampling with EMA or Original Weights
-
-The sampling pipeline supports both weight configurations.
-
-**Generate using EMA weights:**
-
-```bash
-python sample.py --weights ema
-```
-
-**Generate using original model weights:**
-
-```bash
-python sample.py --weights original
-```
-
-EMA is selected by default when available. Original weights remain accessible for comparison.
-
-No `Trainer` instance is required during sampling. The sampling pipeline loads the selected checkpoint weights directly into the DDPM model.
-
-References:
-- [Exponential Moving Average of Weights in Deep Learning: Dynamics and Benefits - TMLR, 2024](https://openreview.net/)
-- [How to Scale Your EMA - NeurIPS, 2023](https://papers.nips.cc/)
-- [Exponential Weight Averaging as Damped Harmonic Motion](https://arxiv.org/)
+For inference, select the desired weights using the `--weights` argument described in the sampling section.
 
 ---
 
-## Training & Evaluation
+## Training and Checkpoint Management
 
-The `Trainer` class in `train.py` manages the complete training workflow.
-
-Its responsibilities include:
+The `Trainer` manages the complete training workflow, including:
 
 - Dataset loading and batching.
 - Forward diffusion and noise prediction.
-- Standard MSE or optional Min-SNR loss.
+- Standard MSE or Min-SNR loss.
 - Mixed-precision training.
 - Gradient clipping.
 - Optimizer and learning-rate scheduler management.
@@ -424,9 +586,7 @@ Its responsibilities include:
 - Experiment logging.
 - Checkpoint saving and restoration.
 
-### Checkpoint Management
-
-Training checkpoints preserve the model state and relevant training information, including:
+Training checkpoints preserve relevant state, including:
 
 - Original DDPM model weights.
 - EMA model weights.
@@ -435,104 +595,77 @@ Training checkpoints preserve the model state and relevant training information,
 - AMP GradScaler state.
 - Training progress and configuration.
 
-This allows training to resume without losing the saved optimizer, scheduler, or EMA state.
-
-The diffusion mode is determined by `config["latent_denoise"]`.
+This allows training to resume from a saved checkpoint while restoring the associated training state.
 
 ---
 
-## Sampling
+## Roadmap
 
-Generate images using a trained checkpoint:
+DiffusionEngine is actively being developed. The long-term objective is to integrate established diffusion techniques and newer research improvements into one unified framework.
 
-```bash
-python sample.py --batch_size 4 --checkpoint ./checkpoint/best.pt
-```
+Planned extensions include:
 
-Choose the weights used for generation:
+| Feature | Description | Status |
+|---|---|---|
+| Cosine Noise Schedule | Alternative noise scheduling strategy | Planned |
+| Learned Variance | Improved reverse-process variance modeling | Planned |
+| DDIM | Reduced-step implicit sampling | Planned |
+| Classifier-Free Guidance | Conditional image generation | Planned |
+| DPM-Solver++ | High-order numerical sampling | Planned |
 
-```bash
-# EMA weights
-python sample.py --batch_size 4 --checkpoint ./checkpoint/best.pt --weights ema
+The roadmap will evolve as new research and implementation requirements emerge.
 
-# Original model weights
-python sample.py --batch_size 4 --checkpoint ./checkpoint/best.pt --weights original
-```
+Follow the repository's GitHub issues for individual feature specifications and implementation progress.
 
-The sampling pipeline restores the model configuration from the checkpoint and automatically selects the correct diffusion mode.
+---
 
-No additional argument is required to enable latent-space sampling.
+
+## Contributing
+
+DiffusionEngine is an open-source project, and contributions are welcome.
+
+I'm particularly interested in collaborating with people working on:
+
+- Diffusion models and generative modeling.
+- PyTorch and deep learning.
+- Research paper implementations.
+- Training optimization and efficient sampling.
+- Model architectures and conditioning mechanisms.
+
+The goal is to build a unified diffusion framework rather than a collection of disconnected implementations.
+
+Every contribution should integrate into the existing pipeline, be configurable through the appropriate command-line arguments, preserve existing functionality, and be tested before submission.
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+For planned features, refer to the [open issues](https://github.com/Himanshu7921/DiffusionEngine/issues).
 
 ---
 
 ## References
+
 1. Ho, J., Jain, A., and Abbeel, P. (2020). [Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239).
 2. Hang, T. et al. (2023). [Efficient Diffusion Training via Min-SNR Weighting Strategy](https://arxiv.org/abs/2303.09556).
-3. [Hugging Face Diffusers - AutoencoderKL](https://huggingface.co/docs/diffusers/api/models/autoencoderkl).
-4. [Stable Diffusion VAE - sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse).
-5. [How to Scale Your EMA - NeurIPS 2023](https://papers.nips.cc/).
+3. [Hugging Face Diffusers – AutoencoderKL](https://huggingface.co/docs/diffusers/api/models/autoencoderkl).
+4. [Stable Diffusion VAE – sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse).
+
+## Citation
+
+If you use this implementation in your research, please consider citing the repository.
+
+```bibtex
+@software{singh_diffusionengine,
+    author = {Himanshu Singh},
+    title = {DiffusionEngine: A Modern, Modular Diffusion Framework Built with PyTorch},
+    url = {https://github.com/Himanshu7921/DiffusionEngine},
+    year = {2026}
+}
+```
 
 ---
 
-## References
-```BibTeX
-@inproceedings{NEURIPS2020_4c5bcfec,
-    author      = {Ho, Jonathan and Jain, Ajay and Abbeel, Pieter},
-    booktitle   = {Advances in Neural Information Processing Systems},
-    editor      = {H. Larochelle and M. Ranzato and R. Hadsell and M.F. Balcan and H. Lin},
-    pages       = {6840--6851},
-    publisher   = {Curran Associates, Inc.},
-    title       = {Denoising Diffusion Probabilistic Models},
-    url         = {https://proceedings.neurips.cc/paper/2020/file/4c5bcfec8584af0d967f1ab10179ca4b-Paper.pdf},
-    volume      = {33},
-    year        = {2020}
-}
-```
-
-```BibTeX
-@inproceedings{Hang_2023_ICCV,
-    author      = {Hang, Tiankai and Gu, Shuyang and Li, Chen and Bao, Jianmin and Chen, Dong and Hu, Han and Geng, Xin and Guo, Baining},
-    booktitle   = {Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
-    month       = {October},
-    pages       = {7441--7451},
-    title       = {Efficient Diffusion Training via Min-SNR Weighting Strategy},
-    year        = {2023},
-    url         = {https://openaccess.thecvf.com/content/ICCV2023/html/Hang_Efficient_Diffusion_Training_via_Min-SNR_Weighting_Strategy_ICCV_2023_paper.html},
-    doi         = {10.1109/ICCV51070.2023.00684}
-}
-```
-
-
-```BibTeX
-@article{moralesbrotons2024ema,
-    author      = {Morales-Brotons, Daniel and Vogels, Thijs and Hendrikx, Hadrien},
-    journal     = {Transactions on Machine Learning Research},
-    title       = {Exponential Moving Average of Weights in Deep Learning: Dynamics and Benefits},
-    year        = {2024},
-    url         = {https://openreview.net/forum?id=2M9CUnYnBA}
-}
-```
-
-```BibTeX
-@inproceedings{busbridge2023scaleema,
-    author      = {Busbridge, Dan and Ramapuram, Jason and Ablin, Pierre and Likhomanenko, Tatiana and Dhekane, Eeshan Gunesh and Suau Cuadros, Xavier and Webb, Russ},
-    booktitle   = {Advances in Neural Information Processing Systems},
-    title       = {How to Scale Your EMA},
-    volume      = {36},
-    year        = {2023},
-    url         = {https://papers.neurips.cc/paper_files/paper/2023/hash/e7681dd6fe16052433ab68cd1555bdc9-Abstract-Conference.html},
-    doi         = {10.52202/075280-3197}
-}
-```
-
-```BibTeX
-@misc{patsenker2023exponential,
-    author      = {Patsenker, Jonathan and Li, Henry and Kluger, Yuval},
-    title       = {Exponential Weight Averaging as Damped Harmonic Motion},
-    year        = {2023},
-    eprint      = {2310.13854},
-    archivePrefix = {arXiv},
-    primaryClass  = {cs.LG},
-    url         = {https://arxiv.org/abs/2310.13854}
-}
-```
+<p align="center">
+  <strong>DiffusionEngine</strong>
+  <br>
+  Building diffusion systems through research, implementation, and engineering.
+</p>
