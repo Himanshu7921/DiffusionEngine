@@ -20,8 +20,7 @@ The implementation is designed to be configurable, extensible, and suitable for 
 <p align="center">
   <img src="assets/generated_result.png" alt="Images generated using the trained DDPM model" width="100%">
 </p>
-
-*Generated samples from the trained diffusion model.*
+<p align="center">  Generated samples from the trained diffusion model </p>
 
 ---
 
