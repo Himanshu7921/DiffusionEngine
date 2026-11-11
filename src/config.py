@@ -2,7 +2,7 @@ DEBUG = True
 
 config = {
     "T": 1000,
-    "batch_size": 64,
+    "batch_size": 16,
 
     # Diffusion mode
     "latent_denoise": True,
@@ -13,6 +13,8 @@ config = {
     # Noise schedule
     "beta_start": 1e-4,
     "beta_end": 2e-2,
+
+    "use_min_snr_loss": True,
 
     # Dataset
     # "test_img_dir": "../data/test_images/celeba_02.png",
