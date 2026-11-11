@@ -216,20 +216,22 @@ class UNet(NoiseModel):
             in_channels: int = 3,
             out_channels: int = 3,
             base_channels: int = 64,
+            channel_multipliers = (1, 2, 4, 8),
             time_embd_dim: int = 256,
             groups: int = 8
         ):
         super().__init__()
+        m1, m2, m3, m4 = channel_multipliers
 
-        assert base_channels % groups == 0
-        assert (base_channels * 2) % groups == 0
-        assert (base_channels * 4) % groups == 0
-        assert (base_channels * 8) % groups == 0
+        assert (base_channels * m1) % groups == 0
+        assert (base_channels * m2) % groups == 0
+        assert (base_channels * m3) % groups == 0
+        assert (base_channels * m4) % groups == 0
 
-        C1 = base_channels # 64
-        C2 = base_channels * 2 # 128
-        C3 = base_channels * 4 # 256
-        C4 = base_channels * 8 # 512
+        C1 = base_channels * m1 # 64
+        C2 = base_channels * m2 # 128
+        C3 = base_channels * m3 # 256
+        C4 = base_channels * m4 # 512
 
         self.time_embedding = nn.Sequential(
             TimeStepEmbeddings(time_embd_dim),
