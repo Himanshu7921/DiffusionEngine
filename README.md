@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo/diffusionengine-logov1.png" height="130" alt="DiffusionEngine Logo">
+  <img src="assets/logo/diffusionengine-logov4.png" height="130" alt="DiffusionEngine Logo">
 </p>
 
 <h1 align="center">DiffusionEngine</h1>
