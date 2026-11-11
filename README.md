@@ -476,7 +476,7 @@ No additional argument is required to enable latent-space sampling.
 ---
 
 ## References
-```
+```BibTeX
 @inproceedings{NEURIPS2020_4c5bcfec,
     author      = {Ho, Jonathan and Jain, Ajay and Abbeel, Pieter},
     booktitle   = {Advances in Neural Information Processing Systems},
@@ -490,7 +490,7 @@ No additional argument is required to enable latent-space sampling.
 }
 ```
 
-```
+```BibTeX
 @inproceedings{Hang_2023_ICCV,
     author      = {Hang, Tiankai and Gu, Shuyang and Li, Chen and Bao, Jianmin and Chen, Dong and Hu, Han and Geng, Xin and Guo, Baining},
     booktitle   = {Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
@@ -504,7 +504,7 @@ No additional argument is required to enable latent-space sampling.
 ```
 
 
-```
+```BibTeX
 @article{moralesbrotons2024ema,
     author      = {Morales-Brotons, Daniel and Vogels, Thijs and Hendrikx, Hadrien},
     journal     = {Transactions on Machine Learning Research},
@@ -514,7 +514,7 @@ No additional argument is required to enable latent-space sampling.
 }
 ```
 
-```
+```BibTeX
 @inproceedings{busbridge2023scaleema,
     author      = {Busbridge, Dan and Ramapuram, Jason and Ablin, Pierre and Likhomanenko, Tatiana and Dhekane, Eeshan Gunesh and Suau Cuadros, Xavier and Webb, Russ},
     booktitle   = {Advances in Neural Information Processing Systems},
@@ -526,7 +526,7 @@ No additional argument is required to enable latent-space sampling.
 }
 ```
 
-```
+```BibTeX
 @misc{patsenker2023exponential,
     author      = {Patsenker, Jonathan and Li, Henry and Kluger, Yuval},
     title       = {Exponential Weight Averaging as Damped Harmonic Motion},
