@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from schedulers import LinearNoiseScheduler, CosineNoiseScheduler
 
 class RandomTimeStepSampler(nn.Module):
     """
@@ -10,6 +11,10 @@ class RandomTimeStepSampler(nn.Module):
         self.T = config["T"]
     
     def forward(self, batch_size: int, device = None):
+        """
+        returns randomly sampled timestep tensors one per batch
+        return: (batch_size,) 
+        """
         return torch.randint(low = 1, high = self.T + 1, size = (batch_size, ), dtype = torch.long, device = device)
 
 class DeterministicTimeStepSampler(nn.Module):
@@ -24,28 +29,6 @@ class DeterministicTimeStepSampler(nn.Module):
     def forward(self, device = None):
         return torch.ones(self.batch_size, dtype = torch.long, device = device) * self.T_test
 
-class LinearNoiseScheduler(nn.Module):
-    """
-    This Linear Noise Scheduler gives the noise, 'beta_t', injected during noise injection
-    """
-    def __init__(self, config):
-        super().__init__()
-        self.config = config
-        self.beta_start = config["beta_start"] # where, beta_end > beta_start means gradually increase the amount of noise added
-        self.beta_end = config["beta_end"]
-        self.T = config["T"]
-
-        beta = torch.zeros(self.T + 1)
-        beta[1:] = torch.linspace(self.beta_start, self.beta_end, self.T)
-
-        alpha = 1 - beta
-
-        self.register_buffer("beta", beta)
-        self.register_buffer("alpha", alpha)
-
-    def forward(self):
-        return (self.alpha, self.beta)
-
 class NoiseInjector(nn.Module):
     """
     Injects the noise upto the timestep 't' to the image x_0
@@ -56,10 +39,19 @@ class NoiseInjector(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.linear_noise_scheduler = LinearNoiseScheduler(config = config)
-        self.alpha, self.beta = self.linear_noise_scheduler() # # alpha.shape = [T+1], beta.shape = [T+1], T: Total timestep
-        alpha_bar = torch.cumprod(self.alpha, dim = 0) # alpha_bar.shape = [T+1]
+        self.noise_scheduler = self.__get_noise_scheduler(config)
+        alpha, beta = self.noise_scheduler() # alpha.shape = [T+1], beta.shape = [T+1], T: Total timestep
+        alpha_bar = self.noise_scheduler.alpha_bar # alpha_bar.shape = [T+1]
+        self.register_buffer("alpha", alpha)
         self.register_buffer("alpha_bar", alpha_bar)
+        self.register_buffer("beta", beta)
+
+    def __get_noise_scheduler(self, config):
+        if config["scheduler"] == "linear".lower():
+            self.scheduler = LinearNoiseScheduler(config = config)
+        elif config["scheduler"] == "cosine".lower():
+            self.scheduler = CosineNoiseScheduler(config = config)
+        return self.scheduler
 
     def forward(self, x_0: torch.Tensor, t: torch.Tensor, noise: torch.Tensor = None):
         """

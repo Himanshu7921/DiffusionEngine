@@ -4,3 +4,4 @@ src/checkpoints/*
 src/tea_debug.log
 src/wandb/*
 src/checkpoint/*
+src/schedulers/__pycache__/*

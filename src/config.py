@@ -12,9 +12,16 @@ config = {
 
     "image_size": 256,
 
-    # Noise schedule
+    # ---------- Noise schedule ----------------
+    "scheduler": "cosine", # ["linear", "cosine"]
+    # Linear
     "beta_start": 1e-4,
     "beta_end": 2e-2,
+
+    "test_img_dir": "../data/test_images/test_img.png",
+
+    # Cosine
+    "s": 0.008,
 
     "use_min_snr_loss": True,
 

@@ -230,7 +230,8 @@ if __name__ == "__main__":
 
     grid = make_grid(
         generated_image,
-        nrow=min(args.batch_size, 4),
+        # nrow=min(args.batch_size, 4),
+        nrow=8,
         padding=0,
         normalize=False
     )
