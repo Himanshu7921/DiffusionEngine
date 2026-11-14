@@ -725,9 +725,7 @@ No pretrained VAE is required for this mode.
 
 Latent-space diffusion operates on compressed representations produced by a pretrained Variational Autoencoder.
 
-DiffusionEngine integrates the Hugging Face Diffusers `AutoencoderKL` implementation using:
-
-[Stable Diffusion VAE — sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse)
+DiffusionEngine integrates the Hugging Face Diffusers `AutoencoderKL` implementation using: [Stable Diffusion VAE: sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse)
 
 Enable latent-space diffusion:
 
