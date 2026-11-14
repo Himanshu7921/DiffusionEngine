@@ -27,6 +27,13 @@
   <strong>First official release</strong>
 </p>
 
+## Documentation
+
+| Version | Release | Documentation |
+|---|---|---|
+| **v1.0.0** | Latest | [View Documentation](README.md) |
+| v0.1.0 | Archive | [View Documentation](docs/versions/v0.1.0/README.md) |
+
 ## Overview
 
 DiffusionEngine is an open-source, modular diffusion framework implemented using PyTorch. It provides a unified architecture for experimenting with and training denoising diffusion probabilistic models.
