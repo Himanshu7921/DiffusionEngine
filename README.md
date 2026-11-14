@@ -66,18 +66,19 @@ The framework also supports latent-space diffusion through a pretrained Stable D
 
 ## Results
 
-**Generated samples**
+### Generated samples
 
 <!-- TODO: Replace this placeholder with the final generated image grid. -->
 
 <p align="center">
   <img src="assets/results/PLACEHOLDER_GENERATED_SAMPLES.png" width="100%" alt="Generated samples from DiffusionEngine v1.0.0">
 </p>
+
 <p align="center">
   <em>Generated samples from the released Improved DDPM model.</em>
 </p>
 
-**Training and validation**
+### Training and validation
 
 <!-- TODO: Add the final training and validation loss curves. -->
 
@@ -85,7 +86,7 @@ The framework also supports latent-space diffusion through a pretrained Stable D
   <img src="assets/results/PLACEHOLDER_TRAINING_CURVES.png" width="90%" alt="Training and validation loss curves">
 </p>
 
-**Additional visual comparisons**
+### Additional visual comparisons
 
 <!-- TODO: Add any final comparisons between linear and cosine schedules, if available. -->
 
@@ -145,7 +146,7 @@ For Improved DDPM, the U-Net additionally predicts a learned variance signal.
 Its output is divided into two components:
 
 $$
-[\epsilon_\theta,\ v_\theta]
+[\epsilon_\theta, v_\theta]
 $$
 
 where:
@@ -199,7 +200,7 @@ $$
 where:
 
 $$
-z\sim\mathcal{N}(0,I)
+z \sim \mathcal{N}(0,I)
 $$
 
 At the final timestep, additional sampling noise is omitted.
@@ -226,7 +227,7 @@ The model interpolates between the forward-process variance and the posterior va
 $$
 \log \sigma_\theta^2
 =
-f_\theta\log\beta_t
+f_\theta \log \beta_t
 +
 (1-f_\theta)\log\tilde{\beta}_t
 $$
@@ -785,7 +786,7 @@ The pretrained VAE remains frozen during diffusion training.
 
 | Release asset | Description | Link |
 |---|---|---|
-| Improved DDPM checkpoint | Pretrained model weights | Download checkpoint - COMING SOON |
+| Improved DDPM checkpoint | Pretrained model weights | Download checkpoint — COMING SOON |
 | Release configuration | Configuration used for training | View configuration |
 
 ### Released model configuration
@@ -879,8 +880,8 @@ EMA provides a smoothed set of model weights that can be selected independently 
 1. Ho, J., Jain, A., and Abbeel, P. (2020). [Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239).
 2. Nichol, A. Q., and Dhariwal, P. (2021). [Improved Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2102.09672).
 3. Hang, T. et al. (2023). [Efficient Diffusion Training via Min-SNR Weighting Strategy](https://arxiv.org/abs/2303.09556).
-4. [Hugging Face Diffusers - AutoencoderKL](https://huggingface.co/docs/diffusers/api/models/autoencoderkl).
-5. [Stable Diffusion VAE - sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse).
+4. [Hugging Face Diffusers — AutoencoderKL](https://huggingface.co/docs/diffusers/api/models/autoencoderkl).
+5. [Stable Diffusion VAE — sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse).
 
 ---
 
