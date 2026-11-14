@@ -314,7 +314,7 @@ The linear scheduler follows the original DDPM formulation.
 
 $$
 \beta_t =
-\operatorname{Linear}
+\mathrm{Linear}
 (\beta_{start},\beta_{end},T)
 $$
 
