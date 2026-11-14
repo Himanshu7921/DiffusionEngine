@@ -1,4 +1,4 @@
-# DiffusionEngine v1.0.0 - Improved DDPM
+# DiffusionEngine v1.0.0 — Improved DDPM
 
 <p align="center">
   <img src="assets/logo/diffusionengine-logov4.png" height="130" alt="DiffusionEngine Logo">
@@ -26,8 +26,6 @@
 <p align="center">
   <strong>First official release</strong>
 </p>
-
----
 
 ## Overview
 
@@ -66,7 +64,7 @@ The framework also supports latent-space diffusion through a pretrained Stable D
 
 ## Results
 
-### Generated samples
+**Generated samples**
 
 <!-- TODO: Replace this placeholder with the final generated image grid. -->
 
@@ -78,7 +76,7 @@ The framework also supports latent-space diffusion through a pretrained Stable D
   <em>Generated samples from the released Improved DDPM model.</em>
 </p>
 
-### Training and validation
+**Training and validation**
 
 <!-- TODO: Add the final training and validation loss curves. -->
 
@@ -86,11 +84,9 @@ The framework also supports latent-space diffusion through a pretrained Stable D
   <img src="assets/results/PLACEHOLDER_TRAINING_CURVES.png" width="90%" alt="Training and validation loss curves">
 </p>
 
-### Additional visual comparisons
+**Additional visual comparisons**
 
 <!-- TODO: Add any final comparisons between linear and cosine schedules, if available. -->
-
----
 
 ## Architecture
 
@@ -145,7 +141,7 @@ For Improved DDPM, the U-Net additionally predicts a learned variance signal.
 Its output is divided into two components:
 
 $$
-[\epsilon_\theta, v_\theta]
+(\epsilon_\theta, v_\theta)
 $$
 
 where:
@@ -164,8 +160,7 @@ $$
 The predicted noise determines the reverse-process mean:
 
 $$
-\mu_\theta(x_t,t)
-=
+\mu_\theta(x_t,t) =
 \frac{1}{\sqrt{\alpha_t}}
 \left(
 x_t -
@@ -179,8 +174,7 @@ For standard DDPM, the reverse-process variance is determined by the posterior v
 Improved DDPM instead learns the reverse-process variance through interpolation in the log domain:
 
 $$
-\log \sigma_\theta^2
-=
+\log \sigma_\theta^2 =
 f_\theta \log \beta_t
 +
 (1-f_\theta)\log\tilde{\beta}_t
@@ -189,8 +183,7 @@ $$
 The reverse sampling step becomes:
 
 $$
-x_{t-1}
-=
+x_{t-1} =
 \mu_\theta(x_t,t)
 +
 \sigma_\theta(x_t,t)z
@@ -203,8 +196,6 @@ z \sim \mathcal{N}(0,I)
 $$
 
 At the final timestep, additional sampling noise is omitted.
-
----
 
 ## Improved DDPM
 
@@ -224,8 +215,7 @@ Improved DDPM introduces a learned variance parameterization, allowing the model
 The model interpolates between the forward-process variance and the posterior variance:
 
 $$
-\log \sigma_\theta^2
-=
+\log \sigma_\theta^2 =
 f_\theta \log \beta_t
 +
 (1-f_\theta)\log\tilde{\beta}_t
@@ -238,8 +228,7 @@ This allows the reverse process to learn its variance rather than relying exclus
 Improved DDPM combines the simple noise prediction objective with a variational lower-bound objective:
 
 $$
-\mathcal{L}_{hybrid}
-=
+\mathcal{L}_{hybrid} =
 \mathcal{L}_{simple}
 +
 \lambda\mathcal{L}_{vlb}
@@ -248,8 +237,7 @@ $$
 The simple objective is:
 
 $$
-\mathcal{L}_{simple}
-=
+\mathcal{L}_{simple} =
 \mathbb{E}_{x_0,\epsilon,t}
 \left[
 \left\|
@@ -261,8 +249,7 @@ $$
 The variational lower-bound objective guides the learned variance:
 
 $$
-\mathcal{L}_{vlb}
-=
+\mathcal{L}_{vlb} =
 \mathbb{E}
 \left[
 L_t
@@ -288,16 +275,14 @@ DiffusionEngine also supports Min-SNR weighting for the noise prediction objecti
 The signal-to-noise ratio is:
 
 $$
-\operatorname{SNR}(t)
-=
+\operatorname{SNR}(t) =
 \frac{\bar{\alpha}_t}{1-\bar{\alpha}_t}
 $$
 
 For epsilon prediction, the weighting function is:
 
 $$
-w(t)
-=
+w(t) =
 \frac{\min(\operatorname{SNR}(t),\gamma)}
 {\operatorname{SNR}(t)}
 $$
@@ -305,8 +290,7 @@ $$
 The weighted noise prediction objective becomes:
 
 $$
-\mathcal{L}_{MinSNR}
-=
+\mathcal{L}_{Min-SNR} =
 \mathbb{E}
 \left[
 w(t)
@@ -319,8 +303,6 @@ $$
 In this implementation, Min-SNR weighting is applied to the noise-prediction loss only. The VLB objective remains responsible for guiding the learned variance.
 
 Reference: [Efficient Diffusion Training via Min-SNR Weighting Strategy](https://arxiv.org/abs/2303.09556).
-
----
 
 ## Noise Schedulers
 
@@ -339,7 +321,7 @@ $$
 The default configuration is:
 
 | Parameter | Value |
-|---|---:|
+|---|---|
 | Timesteps | 1000 |
 | Beta start | 0.0001 |
 | Beta end | 0.02 |
@@ -351,8 +333,7 @@ The cosine scheduler follows the Improved DDPM formulation.
 It first defines a continuous cumulative noise schedule:
 
 $$
-f(t)
-=
+f(t) =
 \cos^2
 \left(
 \frac{t/T+s}{1+s}
@@ -363,16 +344,13 @@ $$
 Then derives cumulative alpha values:
 
 $$
-\bar{\alpha}_t
-=
-\frac{f(t)}{f(0)}
+\bar{\alpha}_t = \frac{f(t)}{f(0)}
 $$
 
 The beta values are calculated from consecutive cumulative alpha values:
 
 $$
-\beta_t
-=
+\beta_t =
 1-
 \frac{\bar{\alpha}_t}
 {\bar{\alpha}_{t-1}}
@@ -404,8 +382,6 @@ The selected scheduler is used consistently by the forward diffusion process and
 
 **Important:** A checkpoint must be sampled using the same noise schedule with which it was trained. Changing the scheduler during inference does not convert a checkpoint trained with another schedule.
 
----
-
 ## Installation
 
 Clone the repository:
@@ -426,8 +402,6 @@ pip install matplotlib tqdm wandb
 For GPU acceleration, install a PyTorch build compatible with your CUDA environment.
 
 Refer to the [official PyTorch installation guide](https://pytorch.org/get-started/locally/).
-
----
 
 ## Configuration
 
@@ -519,8 +493,6 @@ out_channels = 4
 ```
 
 For Improved DDPM, the U-Net internally produces twice the configured output channels because it predicts both noise and variance signals.
-
----
 
 ## Training
 
@@ -636,8 +608,6 @@ Training arguments override their corresponding defaults where supported.
 
 The scheduler and sampling strategy are configured through `config.py`.
 
----
-
 ## Sampling
 
 Image generation is performed using `src/sample.py`.
@@ -720,8 +690,6 @@ Use a sampler compatible with the model architecture and checkpoint being loaded
 | `--weights` | `ema` | Select `ema` or `original` weights |
 | `--sampler` | Checkpoint config | Sampling strategy override |
 
----
-
 ## Diffusion Modes
 
 DiffusionEngine supports pixel-space and latent-space diffusion.
@@ -750,7 +718,9 @@ No pretrained VAE is required for this mode.
 
 Latent-space diffusion operates on compressed representations produced by a pretrained Variational Autoencoder.
 
-DiffusionEngine integrates the Hugging Face Diffusers `AutoencoderKL` implementation using: [Stable Diffusion VAE:  sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse)
+DiffusionEngine integrates the Hugging Face Diffusers `AutoencoderKL` implementation using:
+
+[Stable Diffusion VAE — sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse)
 
 Enable latent-space diffusion:
 
@@ -774,8 +744,6 @@ The VAE applies a spatial downsampling factor of 8.
 Latent representations are scaled before diffusion using the VAE's configured scaling factor and divided by the same factor before decoding.
 
 The pretrained VAE remains frozen during diffusion training.
-
----
 
 ## Model Checkpoint
 
@@ -816,7 +784,44 @@ For inference, the sampling script restores the selected model weights directly 
 
 <!-- TODO: Add the final checkpoint filename, file size, hosting provider, and SHA256 checksum. -->
 
----
+## Project Structure
+
+```text
+DiffusionEngine/
+│
+├── assets/
+│   ├── logo/
+│   └── results/
+│
+├── src/
+│   ├── checkpoint/
+│   ├── samplers/
+│   │   ├── base.py
+│   │   ├── ddpm.py
+│   │   └── improved_ddpm.py
+│   │
+│   ├── schedulers/
+│   │   ├── linear.py
+│   │   └── cosine.py
+│   │
+│   ├── wandb/
+│   │
+│   ├── config.py
+│   ├── dataset_loader.py
+│   ├── denoising_diffusion.py
+│   ├── model.py
+│   ├── modules.py
+│   ├── precompute_latents.py
+│   ├── sample.py
+│   ├── train.py
+│   ├── trainer.py
+│   └── utils.py
+│
+├── README.md
+└── LICENSE
+```
+
+The project is organized around reusable diffusion components.
 
 | Component | Responsibility |
 |---|---|
@@ -829,8 +834,6 @@ For inference, the sampling script restores the selected model weights directly 
 | `CosineNoiseScheduler` | Cosine noise schedule |
 | `DDPMSampler` | Standard DDPM reverse sampling |
 | `ImprovedDDPMSampler` | Learned-variance reverse sampling |
-
----
 
 ## Experiment Tracking and EMA
 
@@ -863,16 +866,13 @@ The Trainer maintains an EMA copy of the model parameters.
 The update rule is:
 
 $$
-\theta_t^{EMA}
-=
+\theta_t^{EMA} =
 \beta\theta_{t-1}^{EMA}
 +
 (1-\beta)\theta_t
 $$
 
 EMA provides a smoothed set of model weights that can be selected independently during inference.
-
----
 
 ## References
 
@@ -881,8 +881,6 @@ EMA provides a smoothed set of model weights that can be selected independently 
 3. Hang, T. et al. (2023). [Efficient Diffusion Training via Min-SNR Weighting Strategy](https://arxiv.org/abs/2303.09556).
 4. [Hugging Face Diffusers — AutoencoderKL](https://huggingface.co/docs/diffusers/api/models/autoencoderkl).
 5. [Stable Diffusion VAE — sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse).
-
----
 
 ## Contributing
 
@@ -898,11 +896,9 @@ Areas of interest include:
 
 The goal is to build a unified diffusion framework rather than a collection of disconnected implementations.
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Please read CONTRIBUTING.md before opening a pull request.
 
 For planned improvements and discussions, visit the [GitHub Issues](https://github.com/Himanshu7921/DiffusionEngine/issues).
-
----
 
 ## Citation
 
@@ -917,8 +913,6 @@ If you use DiffusionEngine in your research, please consider citing the reposito
     year = {2026}
 }
 ```
-
----
 
 <p align="center">
   <strong>DiffusionEngine v1.0.0</strong>
