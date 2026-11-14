@@ -1,6 +1,6 @@
 import random
 from pathlib import Path
-
+import math
 import numpy as np
 import copy # for maintaining EMA of DDPM's params
 import torch
@@ -101,12 +101,17 @@ class Trainer:
         # Model
         # ----------------------------------------------------
         self.ddpm = self.ddpm.to(self.device)
+        self.injector = self.ddpm.noise_injection_pipieline.noise_injector
+        self.alpha = self.injector.alpha.to(self.device)
+        self.alpha_bar = self.injector.alpha_bar.to(self.device)
+        self.beta = self.injector.beta.to(self.device)
 
         # for maintaining a EMA of DDPM's param
         self.ema_ddpm = copy.deepcopy(self.ddpm)
         self.ema_decay = 0.9999
         self.ema_ddpm.eval()
         self.ema_ddpm.requires_grad_(False)
+
 
         # ----------------------------------------------------
         # Dataset and DataLoaders
@@ -242,7 +247,8 @@ class Trainer:
         print(f"Mixed precision: {self.use_amp}")
         print(f"Latent Denoise : {'Enabled' if self.latent_denoise else 'Disabled'}")
         print(f"Precomputed Latents: {'Enabled' if self.precomputed_latents else 'Disabled'}")
-        print(f"Loss: {'MIN-SNR-Loss' if self.use_min_snr_loss else 'MSR-Loss'}")
+        print(f"Loss: {'MIN-SNR-Loss' if self.use_min_snr_loss else 'MSE-Loss'}")
+        print(f"Scheduler: {self.config['scheduler']}")
         print(f"Dataset size:    {len(dataset)}")
         print(f"Training images: {train_size}")
         print(f"Validation:      {val_size}")
@@ -251,6 +257,442 @@ class Trainer:
         print(f"Training steps:  {len(self.train_loader)} per epoch")
         print(f"W&B run:         {self.run.url}")
         print("=" * 60)
+
+    def log_training_metrics(
+        self,
+        *,
+        pred_noise,
+        fraction,
+        timesteps,
+        raw_noise_mse,
+        simple_loss,
+        vlb_loss,
+        hybrid_loss,
+        grad_norm,
+    ):
+        """Log diffusion training diagnostics to Weights & Biases."""
+
+        lambda_vlb = self.config.get("lambda_vlb", 0.001)
+        weighted_vlb = lambda_vlb * vlb_loss
+
+        with torch.no_grad():
+            if fraction is not None:
+                log_var = self.ddpm_trainer_log_var(fraction, timesteps)
+
+            metrics = {
+                # Loss components
+                "train/loss/raw_noise_mse": raw_noise_mse.detach().item(),
+                "train/loss/simple": simple_loss.detach().item(),
+                "train/loss/vlb": vlb_loss.detach().item(),
+                "train/loss/weighted_vlb": weighted_vlb.detach().item(),
+                "train/loss/hybrid": hybrid_loss.detach().item(),
+
+                # Loss contribution
+                "train/loss/vlb_to_simple_ratio": (
+                    weighted_vlb.detach().abs()
+                    / simple_loss.detach().abs().clamp(min=1e-12)
+                ).item(),
+
+                # Gradient diagnostics
+                "train/gradients/noise_output_norm": (
+                    pred_noise.grad.detach().float().norm().item()
+                    if pred_noise.grad is not None else 0.0
+                ),
+                "train/gradients/variance_output_norm": (
+                    fraction.grad.detach().float().norm().item()
+                    if fraction.grad is not None else 0.0
+                ),
+                "train/gradients/model_norm_before_clipping": float(grad_norm),
+
+                # Learned variance diagnostics
+                "train/variance/log_var_mean": log_var.mean().item(),
+                "train/variance/log_var_min": log_var.min().item(),
+                "train/variance/log_var_max": log_var.max().item(),
+                "train/variance/predicted_var_mean": log_var.exp().mean().item(),
+                "train/variance/fraction_mean": fraction.detach().float().mean().item(),
+                "train/variance/fraction_min": fraction.detach().float().min().item(),
+                "train/variance/fraction_max": fraction.detach().float().max().item(),
+
+                # Timestep diagnostics
+                "train/timesteps/mean": timesteps.float().mean().item(),
+                "train/timesteps/min": timesteps.min().item(),
+                "train/timesteps/max": timesteps.max().item(),
+                "train/timesteps/t1_fraction": (
+                    (timesteps == 1).float().mean().item()
+                ),
+
+                # Optimization
+                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+                "train/amp/scale": self.scaler.get_scale(),
+            }
+
+            wandb.log({
+                "global_step": self.global_step,
+                **metrics,
+            })
+
+    def ddpm_trainer_log_var(self, fraction, timesteps):
+        """Return predicted log variance for monitoring."""
+        return self._Trainer__get_predicted_log_var(
+            fraction.detach().float(),
+            timesteps,
+        ).detach().float()
+
+
+    def validate_diffusion_losses(self):
+        """
+        works only for Improved DDPM
+        """
+        self.ddpm.train()
+
+        batch = next(iter(self.train_loader))
+        x_0 = self.prepare_input(batch, training=True).to(
+            self.device
+        )
+
+        # Forward pass without AMP
+        with torch.autocast(
+            device_type=self.device.type,
+            enabled=False
+        ):
+            timesteps = torch.tensor(
+                [1, 2, 100, 799],
+                device=self.device,
+                dtype=torch.long
+            )
+            pred_noise, actual_noise, x_t, timesteps, fraction = self.ddpm(x_0.float(), timesteps = timesteps)
+            log_var = self.__get_predicted_log_var(fraction, timesteps)
+            print("Log variance min:", log_var.min().item())
+            print("Log variance max:", log_var.max().item())
+            print("Log variance mean:", log_var.mean().item())
+
+            pred_noise = pred_noise.float()
+            actual_noise = actual_noise.float()
+            fraction = fraction.float()
+            x_t = x_t.float()
+            x_0 = x_0.float()
+
+            # Simple loss
+            L_simple = F.mse_loss(pred_noise, actual_noise)
+
+            # VLB loss
+            _, L_vlb, L_hybrid = self.__get_hybrid_loss(
+                x_0=x_0,
+                x_t=x_t,
+                pred_noise=pred_noise,
+                pred_variance=fraction,
+                actual_noise=actual_noise,
+                timesteps=timesteps
+            )
+
+            lambda_vlb = self.config.get("lambda_vlb", 0.001)
+
+            weighted_vlb = lambda_vlb * L_vlb
+
+        # Check numerical stability
+        losses = {
+            "L_simple": L_simple,
+            "L_vlb": L_vlb,
+            "weighted_vlb": weighted_vlb,
+            "L_hybrid": L_hybrid
+        }
+
+        print("\n--- LOSS MAGNITUDES ---")
+
+        for name, value in losses.items():
+            print(
+                f"{name:15s}: {value.detach().item():.8f} "
+                f"| finite: {torch.isfinite(value).all().item()}"
+            )
+
+        # Check relative contribution
+        print(
+            "\nVLB / Simple:",
+            weighted_vlb.detach().item()
+            / (abs(L_simple.detach().item()) + 1e-12)
+        )
+
+        # Check gradients independently
+        grad_simple = torch.autograd.grad(
+            L_simple,
+            (pred_noise, fraction),
+            retain_graph=True,
+            allow_unused=True
+        )
+
+        grad_vlb = torch.autograd.grad(
+            L_vlb,
+            (pred_noise, fraction),
+            retain_graph=True,
+            allow_unused=True
+        )
+
+        def grad_norm(gradient):
+            if gradient is None:
+                return 0.0
+
+            return gradient.detach().float().norm().item()
+
+        print("\n--- GRADIENT VALIDATION ---")
+
+        print(
+            "L_simple -> noise:",
+            grad_norm(grad_simple[0])
+        )
+
+        print(
+            "L_simple -> variance:",
+            grad_norm(grad_simple[1])
+        )
+
+        print(
+            "L_vlb -> noise:",
+            grad_norm(grad_vlb[0])
+        )
+
+        print(
+            "L_vlb -> variance:",
+            grad_norm(grad_vlb[1])
+        )
+
+        # Check timestep distribution
+        print("\n--- TIMESTEP DISTRIBUTION ---")
+        print("Minimum timestep:", timesteps.min().item())
+        print("Maximum timestep:", timesteps.max().item())
+        print("t = 1 samples:", (timesteps == 1).sum().item())
+        print("t > 1 samples:", (timesteps > 1).sum().item())
+
+        return losses
+
+
+    def __get_hybrid_loss(self,
+        x_0: torch.Tensor,
+        x_t: torch.Tensor,
+        pred_noise: torch.Tensor,
+        pred_variance: torch.Tensor,
+        actual_noise: torch.Tensor,
+        timesteps: torch.Tensor,
+        simple_loss: torch.Tensor = None
+    ):
+        """
+        Computes the hybrid loss proposed in Improved Denoising Diffusion
+        Probabilistic Models (Nichol & Dhariwal, 2021).
+        > L_hybrid = L_simple + lambda * L_vlb
+
+        Combines the simple noise prediction loss and variational lower
+        bound (VLB) loss to train the model's mean and learned variance.
+
+        Notes:
+            - L_simple trains the reverse process mean.
+            - L_vlb trains the learned variance without propagating
+            gradients through the mean prediction.
+        
+        > pred_noise: (B, C, H, W)
+        > actual_noise: (B, C, H, W)
+        > timesteps: (B, )
+
+        """
+        assert torch.all(timesteps >= 1)
+        assert torch.all(timesteps <= self.beta.shape[0] - 1)
+
+        pred_noise = pred_noise.float()
+        actual_noise = actual_noise.float()
+
+        x_0 = x_0.float()
+        x_t = x_t.float()
+
+        if simple_loss is None:
+            simple_loss = F.mse_loss(pred_noise, actual_noise)
+
+        pred_noise = pred_noise.float()
+        pred_variance = pred_variance.float()
+        actual_noise = actual_noise.float()
+
+        # Simple loss
+
+        # Timesteps masks
+        L_0_mask = timesteps == 1
+        L_t_mask = timesteps > 1
+
+        L_vlb = torch.zeros(
+            x_0.shape[0], device = x_0.device, dtype = x_0.dtype
+        )
+
+        if L_0_mask.any():
+            L_vlb[L_0_mask] = self.__get_decoder_nll(
+                x_0 = x_0[L_0_mask],
+                x_t = x_t[L_0_mask],
+                predicted_noise = pred_noise[L_0_mask],
+                predicted_var = pred_variance[L_0_mask],
+                timesteps = timesteps[L_0_mask]
+            )
+
+        if L_t_mask.any():
+            L_vlb[L_t_mask] = self.__get_posterior_kl(
+                x_0 = x_0[L_t_mask],
+                x_t = x_t[L_t_mask],
+                predicted_noise = pred_noise[L_t_mask],
+                predicted_var = pred_variance[L_t_mask],
+                timesteps = timesteps[L_t_mask]
+            )
+        
+
+        L_vlb = L_vlb.mean()
+        lambda_vlb = self.config.get("lambda_vlb", 0.001)
+        L_hybrid = simple_loss + lambda_vlb * L_vlb
+        return simple_loss, L_vlb, L_hybrid
+
+
+    def __extract(self, value: torch.Tensor, timesteps: torch.Tensor, x: torch.Tensor):
+        """
+        extracts the specific sample for specific timesteps, requires because we need to calcuate L_vlb
+        and reshapes for broadcasting
+
+        sample: (B, C, H, W) (image or latent tensor)
+        timestpes: (B, )
+        """
+        return value[timesteps].to(device = x.device, dtype = x.dtype).view(-1, 1, 1, 1)
+
+
+    def __get_posterior_var(self):
+        """
+        computes posterior variance and clipped posterior variance for log interpolation
+
+        """
+        # calculate the posterior's variance for all timesteps
+        beta_tilde = (self.beta[1:] * (1.0 - self.alpha_bar[:-1]) / (1.0 - self.alpha_bar[1:])) # Shape: (T, )
+
+        posterior_variance = torch.cat([ # index-0 is a place holder to preserve (T+1, ) shape 
+            torch.zeros_like(beta_tilde[:1]),
+            beta_tilde
+        ])
+
+        # Replace t=1 variance with t=2 variance for log stability
+        posterior_variance_clipped = torch.cat([
+            torch.zeros_like(beta_tilde[:1]),
+            beta_tilde[1:2],
+            beta_tilde[1:]
+        ])
+
+        return posterior_variance, posterior_variance_clipped
+    
+    def __get_predicted_log_var(self,
+        pred_variance: torch.Tensor,
+        timesteps: torch.Tensor
+    ):
+        """
+        computes predicted log_var mentioned in the Imporved DDPM's paper, by interpolating in the log-domain
+        """
+        _, posterior_variance_clipped = self.__get_posterior_var()
+        beta_t = self.__extract(self.beta, timesteps, pred_variance)
+        beta_tilde_t = self.__extract(posterior_variance_clipped, timesteps, pred_variance)
+        log_beta_t = torch.log(beta_t)
+        log_beta_tilde_t = torch.log(beta_tilde_t)
+        log_var = pred_variance * log_beta_t + (1.0 - pred_variance) * log_beta_tilde_t # log domain interpolation
+        return log_var
+
+    def __get_decoder_nll(self,
+                x_0: torch.Tensor,
+                x_t: torch.Tensor,
+                predicted_noise: torch.Tensor,
+                predicted_var: torch.Tensor,
+                timesteps: torch.Tensor,
+        ):
+        """
+        computes L_0, mentioned in: Improved Denoising Diffusion
+        Probabilistic Models (Nichol & Dhariwal, 2021).
+        """
+
+        # Diagnostic statistics
+        log_2_pi = math.log(2.0 * math.pi)
+        log_var = self.__get_predicted_log_var(predicted_var, timesteps = timesteps)
+
+        alpha_t = self.__extract(self.alpha, timesteps, predicted_var) # (T+1, )
+        alpha_bar_t = self.__extract(self.alpha_bar, timesteps, predicted_var) # (T+1, )
+        beta_t = self.__extract(self.beta, timesteps, predicted_var) # (T+1, )
+
+        reverse_mean = (1 / torch.sqrt(alpha_t)) * (x_t - beta_t * predicted_noise / (torch.sqrt(1.0 - alpha_bar_t)))
+        reverse_mean = reverse_mean.detach()
+        L_0 = 1/2 * (log_2_pi + log_var + (x_0 - reverse_mean) ** 2 / torch.exp(log_var))
+
+        # residual = x_0 - reverse_mean
+        # variance = torch.exp(log_var)
+
+        # print("\n--- DECODER NLL DIAGNOSTICS ---")
+
+        # print("Residual RMS:", residual.detach().square().mean().sqrt().item())
+
+        # print("Mean absolute residual:",
+        #     residual.detach().abs().mean().item())
+
+        # print("Predicted variance mean:",
+        #     variance.detach().mean().item())
+
+        # print("Predicted variance min:",
+        #     variance.detach().min().item())
+
+        # print("Predicted variance max:",
+        #     variance.detach().max().item())
+
+        # print("Log variance mean:",
+        #     log_var.detach().mean().item())
+
+        # print("NLL per element:",
+        #     (L_0.detach().flatten(1).sum(dim=1)
+        #     / L_0[0].numel()).mean().item())
+
+        # log_term = 0.5 * (
+        #     math.log(2.0 * math.pi) + log_var
+        # )
+
+        # squared_error_term = 0.5 * (
+        #     (x_0 - reverse_mean).square()
+        #     / torch.exp(log_var)
+        # )
+
+        # print("Log term mean:", log_term.detach().mean().item())
+        # print("Squared error term mean:",
+        #     squared_error_term.detach().mean().item())
+        
+        return L_0.flatten(1).sum(dim = 1)
+
+    def __get_posterior_kl(self,
+            x_0: torch.Tensor,
+            x_t: torch.Tensor,
+            predicted_noise: torch.Tensor,
+            predicted_var: torch.Tensor,
+            timesteps: torch.Tensor
+        ):
+        """
+        computes L_{t-1}, mentioned in: Improved Denoising Diffusion
+        Probabilistic Models (Nichol & Dhariwal, 2021).
+        """
+
+        alpha_t = self.__extract(self.alpha, timesteps, x_t)
+        alpha_bar_t = self.__extract(self.alpha_bar, timesteps, x_t)
+        beta_t = self.__extract(self.beta, timesteps, x_t)
+        alpha_bar_prev = self.__extract(self.alpha_bar, timesteps - 1, x_t)
+
+        # calculate reverse mean (detach reverse mean's grad) and var
+        reverse_mean = (x_t - beta_t * predicted_noise / torch.sqrt(1.0 - alpha_bar_t)) / torch.sqrt(alpha_t)
+        reverse_mean = reverse_mean.detach() # Stop gradients through the predicted mean (reverse_mean) for VLB
+
+        # Learned reverse variance
+        log_pred_var = self.__get_predicted_log_var(predicted_var, timesteps)
+
+        # calculate posterior mean
+        coef1 = beta_t * torch.sqrt(alpha_bar_prev) / (1.0 - alpha_bar_t)
+        coef2 = torch.sqrt(alpha_t) * (1.0 - alpha_bar_prev) / (1.0 - alpha_bar_t)
+        posterior_mean = coef1 * x_0 + coef2 * x_t
+
+
+        # calculate posterior variance (beta_tilde)
+        posterior_var, _ = self.__get_posterior_var()
+        posterior_var = self.__extract(posterior_var, timesteps, x_t)
+        log_posterior_var = torch.log(posterior_var)
+
+        L_t_1 = (1/2) * (log_pred_var - log_posterior_var + (posterior_var + (posterior_mean  - reverse_mean) ** 2) / torch.exp(log_pred_var) - 1.0)
+        return L_t_1.flatten(1).sum(dim = 1)
 
 
     def min_snr_loss(self, pred_noise: torch.Tensor, actual_noise: torch.Tensor, timesteps: torch.Tensor, alpha_cumprod: torch.Tensor, gamma: float = 5.0):
@@ -354,22 +796,46 @@ class Trainer:
                 enabled=self.use_amp
             ):
 
-                pred_noise, actual_noise, timesteps = self.ddpm(x_0)
+                pred_noise, actual_noise, x_t, timesteps, fraction = self.ddpm(x_0)
+
+                # Retain gradients on model outputs for diagnostics.
+                pred_noise.retain_grad()
+                if fraction is not None:
+                    fraction.retain_grad()
+
+                # Calculate raw noise prediction MSE independently.
+                raw_noise_mse = F.mse_loss( # only for wandb loggin and debugging
+                    pred_noise.float(),
+                    actual_noise.float(),
+                )
 
                 if not self.use_min_snr_loss:
-                    loss = F.mse_loss(
-                        pred_noise.float(),
-                        actual_noise.float()
-                    )
+                    simple_loss = F.mse_loss(pred_noise.float(),actual_noise.float())
                 else:
                     alpha_cumprod = self.ddpm.noise_injection_pipieline.noise_injector.alpha_bar
-                    loss = self.min_snr_loss(
+                    simple_loss = self.min_snr_loss(
                         pred_noise=pred_noise,
                         actual_noise=actual_noise,
                         timesteps = timesteps,
                         alpha_cumprod = alpha_cumprod,
                         gamma=5.0
                     )
+
+                if self.config["sampler"].lower() == "improved_ddpm":
+                    # Calculate the hybrid objective
+                    L_simple, L_vlb, loss = self.__get_hybrid_loss(
+                        x_0=x_0,
+                        x_t=x_t,
+                        pred_noise=pred_noise,
+                        pred_variance=fraction,
+                        actual_noise=actual_noise,
+                        timesteps=timesteps,
+                        simple_loss = simple_loss
+                    )
+                else:
+                    L_simple = simple_loss
+                    L_vlb = torch.zeros_like(simple_loss)
+                    loss = simple_loss
 
 
             # Backpropagation.
@@ -407,13 +873,16 @@ class Trainer:
 
             # Batch-level W&B logging.
             if self.global_step % self.log_every == 0:
-
-                wandb.log({
-                    "global_step": self.global_step,
-                    "train/batch_loss": loss_value,
-                    "train/gradient_norm": float(grad_norm),
-                    "train/learning_rate": self.optimizer.param_groups[0]["lr"]
-                })
+                self.log_training_metrics(
+                pred_noise=pred_noise,
+                fraction=fraction,
+                timesteps=timesteps,
+                raw_noise_mse=raw_noise_mse,
+                simple_loss=L_simple,
+                vlb_loss=L_vlb,
+                hybrid_loss=loss,
+                grad_norm=grad_norm,
+            )
 
         epoch_loss = running_loss / len(self.train_loader)
 
@@ -452,9 +921,6 @@ class Trainer:
             self.fixed_val_noise.append(noise)
             self.fixed_val_timesteps.append(timesteps)
 
-        print("Fixed validation noise and timesteps generated.")
-
-
     @torch.no_grad()
     def validate(self, epoch):
 
@@ -490,32 +956,44 @@ class Trainer:
                 non_blocking=True
             )
 
-            with torch.autocast(
-                device_type=self.device.type,
-                dtype=torch.float16,
-                enabled=self.use_amp
-            ):
-
-                pred_noise, actual_noise, _ = self.ddpm(
+            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.use_amp):
+                pred_noise, actual_noise, x_t, _ , fraction = self.ddpm(
                     x_0,
                     timesteps=timesteps,
                     noise=noise
                 )
 
+                raw_noise_mse = F.mse_loss(
+                    pred_noise.float(),
+                    actual_noise.float(),
+                )
+
                 if self.config["use_min_snr_loss"]:
-                    loss = self.min_snr_loss(
+                    simple_loss = self.min_snr_loss(
                         pred_noise=pred_noise,
                         actual_noise=actual_noise,
                         timesteps=timesteps,
                         alpha_cumprod=alpha_cumprod,
                         gamma=5.0
                     )
-
                 else:
-                    loss = F.mse_loss(
-                        pred_noise.float(),
-                        actual_noise.float()
+                    simple_loss = raw_noise_mse
+
+                if self.config["sampler"].lower() == "improved_ddpm":
+                    # Calculate the hybrid objective
+                    L_simple, L_vlb, loss = self.__get_hybrid_loss(
+                        x_0=x_0,
+                        x_t=x_t,
+                        pred_noise=pred_noise,
+                        pred_variance=fraction,
+                        actual_noise=actual_noise,
+                        timesteps=timesteps,
+                        simple_loss = simple_loss
                     )
+                else:
+                    L_simple = simple_loss
+                    L_vlb = torch.zeros_like(simple_loss)
+                    loss = simple_loss
 
             running_loss += loss.item()
 
