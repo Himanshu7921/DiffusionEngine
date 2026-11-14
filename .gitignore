@@ -1,6 +1,65 @@
-src/__pycache__/*
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Checkpoints and model weights
+**/checkpoint/
+**/checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Datasets and precomputed latents
 data/
-src/checkpoints/*
-src/tea_debug.log
-src/wandb/*
-src/checkpoint/*
+datasets/
+**/latents/
+*.npy
+*.npz
+
+# Experiment tracking
+wandb/
+**/wandb/
+mlruns/
+runs/
+
+# Logs and debugging
+*.log
+tea_debug.log
+debug.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+~*
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+
+# Environment variables
+.env
+.env.*
+!.env.example

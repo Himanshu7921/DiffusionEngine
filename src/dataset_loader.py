@@ -64,7 +64,6 @@ class LatentDataset(Dataset):
         }
 
         print(f"Loaded latent dataset: {len(self.latents)} images")
-        print(f"Latent shape: {tuple(self.latents.shape)}")
 
     def __len__(self):
         return len(self.latents)

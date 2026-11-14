@@ -17,8 +17,14 @@ class NoisePredictionPipeline(nn.Module):
         x_t.shape = (B, C, H, W)
         t.shape = (B, )
         """
-        epsilion = self.noise_model(x_t, t) # epsilion.shape = (B, C, H, W)
-        return epsilion
+        model_output = self.noise_model(x_t, t) # epsilion.shape = (B, 2*C, H, W)
+
+        if self.noise_model.learned_fraction: # if sampler is set to improved_ddpm
+            epsilion, variance_logits = model_output.chunk(2, dim=1) # (B, 2*C, H, W) --> ((B, C, H, W), (B, C, H, W))
+            fraction = (variance_logits + 1.0) / 2.0 # The paper describes the model output 'v' and maps it to an interpolation fraction
+            return epsilion, fraction
+        else:
+            return model_output, None
     
 class DDPM(nn.Module):
     def __init__(self, noise_injection_pipieline: NoiseInjectionPipeline, noise_prediction_pipeline: NoisePredictionPipeline):
@@ -35,13 +41,18 @@ class DDPM(nn.Module):
         If timesteps/noise are provided, reuse them
         Otherwise, generate random values
 
+        returns: 
+        > pred_noise: (B, C, H, W)
+        > pred_var: (B, C, H, W) [for learning variance for reverse diffusion process]
+        > actual_noise: (B, C, H, W)
+        > t: (B, )
 
         timesteps and noise = None (normal mode) | fixed at validation time (makes LRScheuler less sensitive on random noise)
     """
         (x_t, actual_noise), t = self.noise_injection_pipieline(x_0, timesteps = timesteps, noise = noise)
         self.t = t
-        pred_noise = self.noise_prediction_pipeline(x_t, t)
-        return pred_noise, actual_noise, t # ([B, C, H, W], [B, C, H, W])
+        pred_noise, self.fraction = self.noise_prediction_pipeline(x_t, t)
+        return pred_noise, actual_noise, x_t, t, self.fraction # ([B, C, H, W], [B, C, H, W], [B, C, H, W], (B, ), (B, C, H, W))
 
 
 # if __name__ == "__main__":

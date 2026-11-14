@@ -91,7 +91,8 @@ def main():
         out_channels=config["out_channels"],
         channel_multipliers=(1, 2, 4, 8),
         time_embd_dim=config["time_embed"],
-        base_channels=args.base_channels
+        base_channels=args.base_channels,
+        learned_fraction= config["sampler"].lower() == "improved_ddpm"
     )
 
     # Noise prediction pipeline
@@ -139,6 +140,7 @@ def main():
 
     # Start training
     trainer.fit()
+    # trainer.validate_diffusion_losses()
 
 
 if __name__ == "__main__":

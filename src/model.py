@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from config import config
 
 class NoiseModel(nn.Module, ABC):
     @abstractmethod
@@ -208,7 +209,7 @@ class BottleneckBlock(nn.Module):
         """
         x_t = self.resblock1(x_t, t_e) # (B, C, H, W)
         x_t = self.attention_block(x_t) # (B, C, H, W)
-        x_t = self.resblock1(x_t, t_e) # (B, C, H, W)
+        x_t = self.resblock2(x_t, t_e) # (B, C, H, W)
         return x_t # (B, C, H, W)
 
 class UNet(NoiseModel):
@@ -218,8 +219,30 @@ class UNet(NoiseModel):
             base_channels: int = 64,
             channel_multipliers = (1, 2, 4, 8),
             time_embd_dim: int = 256,
-            groups: int = 8
+            groups: int = 8,
+            learned_fraction: bool = True
         ):
+        """
+        U-Net backbone for noise and learned variance prediction.
+
+        Given a noisy sample 'x_t' and timestep 't', predicts the noise
+        and variance interpolation values in a single forward pass
+
+        Implements learned variance as described in Improved Denoising
+        Diffusion Probabilistic Models (Nichol & Dhariwal, 2021):
+        https://arxiv.org/pdf/2102.09672
+
+        Returns concatenated noise and variance predictions, each with
+        the same channel dimensions as the input
+        """
+
+        self.learned_fraction = learned_fraction
+        output_channels = (
+            2 * out_channels
+            if self.learned_fraction
+            else out_channels
+        )
+        
         super().__init__()
         m1, m2, m3, m4 = channel_multipliers
 
@@ -294,8 +317,8 @@ class UNet(NoiseModel):
         # output layer
         self.out_norm = nn.GroupNorm(num_channels = C1, num_groups = groups)
         self.output_conv = nn.Conv2d(
-            C1, out_channels, kernel_size = 3, padding = 1
-        )
+            C1, output_channels, kernel_size = 3, padding = 1
+        ) # out_channel = (2*C) because we need learned variance signals of same shape as (B, C, H, W)
         self.silu = nn.SiLU()
 
     def pad_to_multiple(self, x, multiple = 8):
@@ -314,7 +337,7 @@ class UNet(NoiseModel):
         x_t: Noise Image, noise injected upto timestep 't'; shape = (B, C, H, W)
         t_e: TimeStep Embeddings: Shape = [B]
 
-        returns: (B, C, H, W) 'predicted noise'
+        returns: (B, 2*C, H, W) 'predicted noise' + 'learned variance signals' (for learning variances for reverse diffusion process)
         """
         # Pad the input to the nearest multiple of '8'
         x_t, (H, W) = self.pad_to_multiple(x_t, multiple = 8)
@@ -345,27 +368,12 @@ class UNet(NoiseModel):
         # print(f"x_t.shape = {x_t.shape} | e3.shape = {e3.shape} | t_e.shape = {t_e.shape}")
         x_t = self.decoder1(x_t, e1, t_e) # (B, 64, H2, W2)
 
-        # Noise Prediction
-        x_t = self.output_conv(self.silu(self.out_norm(x_t)))
+        # Noise Prediction Stage
+        x_t = self.silu(self.out_norm(x_t)) # add Normalization and Activation function
+        x_t = self.output_conv(x_t) # Final Layer
         x_t = x_t[:, :, :H, :W] # Remove the padding and restore original resolution
-
-        epsilion = x_t # (B, 64, H, W)
-        return epsilion
-    
-class NoisePredictionPipeline(nn.Module):
-    def __init__(self, config, noise_prediction_model: NoiseModel):
-        super().__init__()
-        self.T = config["T"]
-        self.time_embed = config["time_embed"]
-        self.noise_model = noise_prediction_model
-
-    def forward(self, x_t: torch.Tensor, t: torch.Tensor):
-        """
-        x_t.shape = (B, C, H, W)
-        t.shape = (B, )
-        """
-        epsilion = self.noise_model(x_t, t) # epsilion.shape = (B, C, H, W)
-        return epsilion
+        epsilion = x_t
+        return epsilion # (B, 2*C, H, W) or (B, C, H, W)
 
 
 if __name__ == "__main__":
@@ -373,7 +381,8 @@ if __name__ == "__main__":
         in_channels=3,
         out_channels=3,
         time_embd_dim=256,
-        base_channels=64
+        base_channels=64,
+        learned_fraction= config["sampler"].lower() == "improved_ddpm"
     )
 
     x_t = torch.randn(2, 3, 256, 256)
