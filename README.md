@@ -841,8 +841,8 @@ EMA provides a smoothed set of model weights that can be selected independently 
 1. Ho, J., Jain, A., and Abbeel, P. (2020). [Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239).
 2. Nichol, A. Q., and Dhariwal, P. (2021). [Improved Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2102.09672).
 3. Hang, T. et al. (2023). [Efficient Diffusion Training via Min-SNR Weighting Strategy](https://arxiv.org/abs/2303.09556).
-4. [Hugging Face Diffusers — AutoencoderKL](https://huggingface.co/docs/diffusers/api/models/autoencoderkl).
-5. [Stable Diffusion VAE — sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse).
+4. [Hugging Face Diffusers: AutoencoderKL](https://huggingface.co/docs/diffusers/api/models/autoencoderkl).
+5. [Stable Diffusion VAE: sd-vae-ft-mse](https://huggingface.co/stabilityai/sd-vae-ft-mse).
 
 ## Contributing
 
