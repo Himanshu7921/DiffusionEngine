@@ -1,4 +1,4 @@
-# DiffusionEngine v1.0.0 — Improved DDPM
+# DiffusionEngine v1.0.0 - Improved DDPM
 
 <p align="center">
   <img src="assets/logo/diffusionengine-logov4.png" height="130" alt="DiffusionEngine Logo">
