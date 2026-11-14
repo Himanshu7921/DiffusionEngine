@@ -39,19 +39,21 @@ class NoiseInjector(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.noise_scheduler = self.__get_noise_scheduler(config)
-        alpha, beta = self.noise_scheduler() # alpha.shape = [T+1], beta.shape = [T+1], T: Total timestep
-        alpha_bar = self.noise_scheduler.alpha_bar # alpha_bar.shape = [T+1]
+        scheduler = self.__get_noise_scheduler(config)
+        alpha, beta = scheduler() # alpha.shape = [T+1], beta.shape = [T+1], T: Total timestep
+        alpha_bar = scheduler.alpha_bar # alpha_bar.shape = [T+1]
         self.register_buffer("alpha", alpha)
         self.register_buffer("alpha_bar", alpha_bar)
         self.register_buffer("beta", beta)
 
     def __get_noise_scheduler(self, config):
-        if config["scheduler"] == "linear".lower():
-            self.scheduler = LinearNoiseScheduler(config = config)
-        elif config["scheduler"] == "cosine".lower():
-            self.scheduler = CosineNoiseScheduler(config = config)
-        return self.scheduler
+        scheduler_name = config["scheduler"].lower()
+        if scheduler_name == "linear":
+            return LinearNoiseScheduler(config=config)
+        elif scheduler_name == "cosine":
+            return CosineNoiseScheduler(config=config)
+        else:
+            raise ValueError(f"Unsupported noise scheduler: {scheduler_name}")
 
     def forward(self, x_0: torch.Tensor, t: torch.Tensor, noise: torch.Tensor = None):
         """
