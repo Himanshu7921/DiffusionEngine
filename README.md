@@ -784,44 +784,6 @@ For inference, the sampling script restores the selected model weights directly 
 
 <!-- TODO: Add the final checkpoint filename, file size, hosting provider, and SHA256 checksum. -->
 
-## Project Structure
-
-```text
-DiffusionEngine/
-│
-├── assets/
-│   ├── logo/
-│   └── results/
-│
-├── src/
-│   ├── checkpoint/
-│   ├── samplers/
-│   │   ├── base.py
-│   │   ├── ddpm.py
-│   │   └── improved_ddpm.py
-│   │
-│   ├── schedulers/
-│   │   ├── linear.py
-│   │   └── cosine.py
-│   │
-│   ├── wandb/
-│   │
-│   ├── config.py
-│   ├── dataset_loader.py
-│   ├── denoising_diffusion.py
-│   ├── model.py
-│   ├── modules.py
-│   ├── precompute_latents.py
-│   ├── sample.py
-│   ├── train.py
-│   ├── trainer.py
-│   └── utils.py
-│
-├── README.md
-└── LICENSE
-```
-
-The project is organized around reusable diffusion components.
 
 | Component | Responsibility |
 |---|---|
