@@ -101,8 +101,7 @@ DiffusionEngine organizes the diffusion process into three primary stages.
 Forward diffusion gradually adds Gaussian noise to an original sample according to a predefined noise schedule.
 
 $$
-q(x_t \mid x_0)
-=
+q(x_t \mid x_0) =
 \mathcal{N}
 \left(
 x_t;
