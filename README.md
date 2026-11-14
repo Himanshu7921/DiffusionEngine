@@ -275,7 +275,7 @@ DiffusionEngine also supports Min-SNR weighting for the noise prediction objecti
 The signal-to-noise ratio is:
 
 $$
-\operatorname{SNR}(t) =
+\mathrm{SNR}(t) =
 \frac{\bar{\alpha}_t}{1-\bar{\alpha}_t}
 $$
 
@@ -283,8 +283,8 @@ For epsilon prediction, the weighting function is:
 
 $$
 w(t) =
-\frac{\min(\operatorname{SNR}(t),\gamma)}
-{\operatorname{SNR}(t)}
+\frac{\min(\mathrm{SNR}(t),\gamma)}
+{\mathrm{SNR}(t)}
 $$
 
 The weighted noise prediction objective becomes:
