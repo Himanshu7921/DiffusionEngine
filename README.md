@@ -71,29 +71,28 @@ The framework also supports latent-space diffusion through a pretrained Stable D
 
 ## Results
 
-**Generated samples**
-
 <!-- TODO: Replace this placeholder with the final generated image grid. -->
+<p align="center">
+  <strong>Generated Images</strong>
+</p>
 
 <p align="center">
-  <img src="assets/results/PLACEHOLDER_GENERATED_SAMPLES.png" width="100%" alt="Generated samples from DiffusionEngine v1.0.0 [MODEL IS UNDER TRANING]">
+  <img src="assets/results/v1.0.0/sampled_results_01.png" width="100%" alt="Generated samples from DiffusionEngine v1.0.0 [MODEL IS UNDER TRANING]">
 </p>
 
 <p align="center">
   <em>Generated samples from the released Improved DDPM model.</em>
 </p>
 
-**Training and validation**
-
-<!-- TODO: Add the final training and validation loss curves. -->
+---
 
 <p align="center">
-  <img src="assets/results/PLACEHOLDER_TRAINING_CURVES.png" width="90%" alt="Training and validation loss curves [MODEL IS UNDER TRANING]">
+  <strong>Training and Validation Plot</strong>
 </p>
 
-**Additional visual comparisons**
-
-<!-- TODO: Add any final comparisons between linear and cosine schedules, if available. -->
+<p align="center">
+  <img src="assets/results/v1.0.0/traning_curve.png" width="90%" alt="Training and validation loss curves [MODEL IS UNDER TRANING]">
+</p>
 
 ## Architecture
 
