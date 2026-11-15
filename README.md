@@ -31,8 +31,8 @@
 
 | Version | Status | Documentation | Paper |
 |:---|:---|:---|:---|
-| **v1.0.0** | Latest | [View Documentation](README.md) | [Improved DDPM](paper_version/v1.0.0/DiffusionEngine%20v1.0.0%20Improved%20DDPM.pdf) |
-| v0.1.0 | Archive | [View Documentation](docs/versions/v0.1.0/README.md) | [Standard DDPM](paper_version/v0.1.0/DiffusionEngine%20v0.1.0%20Standard%20DDPM.pdf) |
+| **v1.0.0** | Latest | [View Documentation](README.md) | [Improved DDPM](paper/version/v1.0.0/DiffusionEngine%20v1.0.0%20Improved%20DDPM.pdf) |
+| v0.1.0 | Archive | [View Documentation](docs/versions/v0.1.0/README.md) | [Standard DDPM](paper/version/v0.1.0/DiffusionEngine%20v0.1.0%20Standard%20DDPM.pdf) |
 
 ## Overview
 
